@@ -48,8 +48,11 @@ subcatchments_final <- st_intersection(subcatchments_40kms, cropping_sf)
 
 #### River network ----
 
-
 streams_path <- 'C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/eu-hydro/CH_HYDRO.shp'
 ch_rivers <- st_read(streams_path)
+ch_rivers$CUM_LEN_LOG <- log(ch_rivers$CUM_LEN+1)
 
 
+## remove lakes from rivers
+streams_in_lakes <- st_intersects(lakes_in_ch, ch_rivers)
+ch_rivers_2 <- ch_rivers[-unique(unlist(flatten(streams_in_lakes))),]

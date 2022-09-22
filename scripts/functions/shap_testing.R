@@ -23,7 +23,7 @@ get_shapleys <- function(model,    # random forest model fitted to data
                                      X = X, 
                                      newdata = new_data[vars],
                                      pred_wrapper = pfun, 
-                                     nsim = 1)
+                                     nsim = 50)
   
   # aggregate and clean up
   shapley <- shapley %>% data.frame %>% mutate_if(., is.numeric, .funs = round, 2)

@@ -128,7 +128,7 @@ sp_data_pa <- paste0(sp_dir, '/data/sdm_input_data.rds')
 
 # get path to species distribution models rasters
 sp_raster_suit_po <- paste0(sp_dir, '/output/raster_maps/suitability_stack_po_rf.TIF')
-sp_raster_pres_po <- paste0(sp_dir, '/output/raster_maps/presence_stack_po_rf.TIF')
+sp_raster_pres_po <- paste0(sp_dir, '/output/raster_maps/presence_BIN_stack_po_rf.TIF')
 sp_raster_suit_pa <- paste0(sp_dir, '/output/raster_maps/suitability_stack_pa_rf.TIF')
 sp_raster_pres_pa <- paste0(sp_dir, '/output/raster_maps/presence_stack_pa_rf.TIF')
 
@@ -238,7 +238,7 @@ if ("presence_only" %in% fitting) {
      # predictive function
      pred_wrapper = pfun, 
      # number of replicates
-     nsim = 100
+     nsim = 1000
      
    )
    
@@ -265,7 +265,7 @@ if ("presence_only" %in% fitting) {
  
  sp_shapley_po$model_type = 'PO'
  sp_shapley_po$species_name = sp_name
- sp_shapley_po$nrep = 100
+ sp_shapley_po$nrep = 1000
 
  saveRDS(sp_shapley_po, paste0(save_dir, "shapley_rf_po.RDS"))
  
@@ -351,7 +351,7 @@ if ("presence_absence" %in% fitting) {
      # predictive function
      pred_wrapper = pfun, 
      # number of replicates
-     nsim = 100
+     nsim = 1000
      
      )
    
@@ -370,7 +370,7 @@ if ("presence_absence" %in% fitting) {
  
  sp_shapley_pa$model_type = 'PA'
  sp_shapley_pa$species_name = sp_name
- sp_shapley_pa$nrep = 100
+ sp_shapley_pa$nrep = 1000
  
  saveRDS(sp_shapley_pa, paste0(save_dir, "shapley_rf_pa.RDS"))
  

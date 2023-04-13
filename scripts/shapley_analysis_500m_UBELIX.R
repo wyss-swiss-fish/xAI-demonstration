@@ -19,7 +19,7 @@ dd_env <- 'data/sdm-pipeline/env-data/'
 dd_ch  <- 'data/ch-spatial-products/' # other swiss spatial products
 
 # set sdm run location
-run_name <- paste0('ubelix_SDM_RF_MARCH_v1', '/')
+run_name <- paste0('ubelix_SDM_RF_APRIL_500m_v1', '/')
 # run_dir <- paste0('D:/sdm-pipeline/sdm-run/', run_name)
 run_dir  <- paste0('sdm-run/', run_name)
 
@@ -28,7 +28,7 @@ shap_dir <- paste0('shapley-run/', run_name)
 dir.create(shap_dir, recursive = T)
 
 # get the records list to determine what kind of model was fitted in the same way as it is run on UBELIX
-record_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
+record_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010_500m.csv'))
 record_table <- record_table %>% filter(species_name %in% unique(record_table$species_name)[i])
 
 # get species name
@@ -44,7 +44,7 @@ dir.create(save_dir, recursive = T)
 #### 3. Load all spatial objects ----
 
 # read in elevation raster
-base_rast <- rast(paste0(dd_env, "ch-rasters/final-raster-set/all_env_data_RHEIN_RESIDUALS.tif"))
+base_rast <- rast(paste0(dd_env, "ch-rasters/final-raster-set/all_env_data_RHEIN_RESIDUALS_500m.tif"))
 base_rast <- base_rast[[1]]
 
 # set crs
@@ -238,7 +238,7 @@ if ("presence_only" %in% fitting) {
      # predictive function
      pred_wrapper = pfun, 
      # number of replicates
-     nsim = 1000
+     nsim = 100
      
    )
    
@@ -265,7 +265,7 @@ if ("presence_only" %in% fitting) {
  
  sp_shapley_po$model_type = 'PO'
  sp_shapley_po$species_name = sp_name
- sp_shapley_po$nrep = 1000
+ sp_shapley_po$nrep = 100
 
  saveRDS(sp_shapley_po, paste0(save_dir, "shapley_rf_po.RDS"))
  
@@ -351,7 +351,7 @@ if ("presence_absence" %in% fitting) {
      # predictive function
      pred_wrapper = pfun, 
      # number of replicates
-     nsim = 1000
+     nsim = 100
      
      )
    
@@ -370,7 +370,7 @@ if ("presence_absence" %in% fitting) {
  
  sp_shapley_pa$model_type = 'PA'
  sp_shapley_pa$species_name = sp_name
- sp_shapley_pa$nrep = 1000
+ sp_shapley_pa$nrep = 100
  
  saveRDS(sp_shapley_pa, paste0(save_dir, "shapley_rf_pa.RDS"))
  

@@ -12,15 +12,19 @@ dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Na
 dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
 # figure directory
-fig_dir <- "figures-march2023-v2"
+fig_dir <- "figures/figures-march2023-v5"
 
 # get run to mak figures for
-RUN <- "ubelix_test_PARA_RF_v3"
+RUN <- "ubelix_SDM_RF_MARCH_v5"
 
 # get species of interest
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
-#sp_list <- c("Alburnoides bipunctatus", "Gobio gobio", "Barbus barbus")
-sp_list <- unique(records_table$species_name)
+# sp_list <- list.files(paste0('D:/sdm-pipeline/sdm-run/', RUN))
+# sp_list <- unique(records_table$species_name)
+sp_list <- sort(c('Thymallus thymallus', 'Squalius cephalus', 
+             'Barbus barbus', 'Gobio gobio', 
+             'Alburnoides bipunctatus', 'Perca fluviatilis', 
+             'Lampetra planeri'))
  
 
 # get directories for focal shapley objects
@@ -42,7 +46,7 @@ rc_po <- paste0(sdm_dirs, "/output/response_curves/response_curves_rf_po.rds")
 rc_pa <- paste0(sdm_dirs, "/output/response_curves/response_curves_rf_pa.rds")
 
 # range maps
-sp_raster_pres_po <- paste0(sdm_dirs, "/output/raster_maps/presence_stack_po_rf.TIF")
+sp_raster_pres_po <- paste0(sdm_dirs, "/output/raster_maps/presence_MCC_stack_po_rf.TIF")
 sp_raster_pres_pa <- paste0(sdm_dirs, "/output/raster_maps/presence_stack_pa_rf.TIF")
 
 # read in environmental data
@@ -130,31 +134,28 @@ all_env_subcatchments$ID <- NULL
 
 #### 4. Set up variable names ----
 
-# set vector of focal variables
+# set vector of focal variables for assigning new names
 vars <- c('ecoF_discharge_max_log10', 
           'ecoF_slope_min_log10', 
           'ecoF_flow_velocity_mean', 
           'stars_t_mx_m_c', 
           'stars_t_mn_m_c',
           'local_asym_cl_log10',
+          'local_dis2lake',
           'ecoF_eco_mean', 
-          'stars_lu_crp_p_e_ele_residual',
-          'local_tcd_0.1_log10', 
-          'local_imd_log10_ele_residual',
-          'stars_lud_m_m_e_ele_residual',
+          'local_imd_log10',
           'local_wet',
-          'local_flood',
-          'stars_n_ch_m_e_ele_residual',
-          'stars_p_ch_m_e_ele_residual',
-          'stars_isct_m_e_ele_residual')
+          'local_flood')
+
 # set vars
 vars_shap <- paste0(vars, "_SHAP")
 
 # rename variables
-vars_renamed = c('discharge', 'slope', 'flow velocity', 'temperature max', 'temperature min', 
-                 'connectivity', 'ecomorphology', 'cropland', 'tree cover', 'urbanisation',
-                 'livestock', 'wetland', 'floodplains', 'nitrogen', 'phosphorous', 
-                 'insecticide')
+vars_renamed = c('discharge', 'slope', 'flow velocity', 
+                 'temperature max', 'temperature min', 
+                 'connectivity', 'distance to lake', 
+                 'ecomorphology', 'urbanisation',
+                 'wetland', 'floodplains')
 
 vars_renamed <- cbind(vars_shap, vars_renamed)
 
@@ -315,9 +316,10 @@ for (i in 1:length(sp_list)){
 
 #### 7. Create single pdf of all shapely across each species ----
 
-dir.create('figures-march2023-v2-allsp', recursive = T)
+fig_dir_allsp <- paste0(fig_dir, '-allsp/')
+dir.create(fig_dir_allsp, recursive = T)
 
-pdf(paste0('figures-march2023-v2-allsp/', "shap_maps_all_po", ".pdf"), width = 14, height = 10)
+pdf(paste0(fig_dir_allsp, "shap_maps_all_po", ".pdf"), width = 14, height = 10)
 for (i in 1:length(sp_list)){
   
     do_po <- file.exists(paste0(shap_dirs[i], "/shap_raster_po.TIF"))
@@ -355,7 +357,7 @@ for (i in 1:length(sp_list)){
 }
 dev.off() 
    
-pdf(paste0('figures-march2023-v2-allsp/', "shap_maps_all_pa", ".pdf"), width = 14, height = 10)
+pdf(paste0(fig_dir_allsp, "shap_maps_all_pa", ".pdf"), width = 14, height = 10)
 for(i in 1:length(sp_list)){
   
   do_pa <- file.exists(paste0(shap_dirs[i], "/shap_raster_pa.TIF"))
@@ -401,7 +403,7 @@ dev.off()
 
 #### 8. Create shapley based response curves for interpretations ----
 
-pdf(paste0('figures-march2023-v2-allsp/', "shap_rc_all_po", ".pdf"), width = 14, height = 14)
+pdf(paste0(fig_dir_allsp, "shap_rc_all_po", ".pdf"), width = 14, height = 14)
 for (i in 1:length(sp_list)) {
   
   if (all(sapply(c(paste0(shap_dirs[i], "/shap_raster_po.TIF"), rc_po[i], sp_raster_pres_po[i]), file.exists))) {
@@ -456,7 +458,7 @@ dev.off()
 
 
 # make plots of response curves for presence-absence data
-pdf(paste0('figures-march2023-v2-allsp/', "shap_rc_all_pa", ".pdf"), width = 14, height = 14)
+pdf(paste0(fig_dir_allsp, "shap_rc_all_pa", ".pdf"), width = 14, height = 14)
 for (i in 1:length(sp_list)) {
   
   if (all(sapply(c(paste0(shap_dirs[i], "/shap_raster_pa.TIF"), rc_pa[i], sp_raster_pres_pa[i]), file.exists))) {
@@ -507,6 +509,8 @@ for (i in 1:length(sp_list)) {
   print(i)
 }
 dev.off()
+
+
 
 #### 9. Make plot comparing all species shapley values together ----
 
@@ -572,7 +576,7 @@ focal_species <- c('Thymallus thymallus',
                    'Anguilla anguilla', 
                    'Esox lucius')
 
-pdf(paste0('figures-march2023-v2-allsp/', "shap_select_varimp", ".pdf"), width = 7, height = 7)
+pdf(paste0(fig_dir_allsp, "shap_select_varimp", ".pdf"), width = 7, height = 7)
 ggplot(data = all_shap_env_pa_simple %>% 
          filter(vars_renamed %in% focal_variables, 
                 species_name %in% focal_species) %>% 
@@ -586,7 +590,7 @@ ggplot(data = all_shap_env_pa_simple %>%
   ylab(NULL) 
 dev.off()
 
-pdf(paste0('figures-march2023-v2-allsp/', "shap_select_rc", ".pdf"), width = 13, height = 13)
+pdf(paste0(fig_dir_allsp, "shap_select_rc", ".pdf"), width = 13, height = 13)
 ggplot(data = all_shap_env_pa %>% 
          filter(vars_renamed %in% focal_variables, 
                 species_name %in% focal_species) %>% 
@@ -671,7 +675,7 @@ shapley_emme_data <- shapley_emme_data %>%
   filter(name %in% focal_variables)
   
 
-pdf(paste0('figures-march2023-v2-allsp/', "shap_local_emme", ".pdf"), width = 10, height = 5)
+pdf(paste0(fig_dir_allsp, "shap_local_emme", ".pdf"), width = 10, height = 5)
 ggplot(data = shapley_emme_data) + 
   geom_bar(aes(y = name, 
                x = mean_shap, 
@@ -752,7 +756,7 @@ shapley_limmat_data <- shapley_limmat_data %>%
   filter(name %in% focal_variables)
 
 
-pdf(paste0('figures-march2023-v2-allsp/', "shap_local_limmat", ".pdf"), width = 10, height = 5)
+pdf(paste0(fig_dir_allsp, "shap_local_limmat", ".pdf"), width = 10, height = 5)
 ggplot(data = shapley_limmat_data) + 
   geom_bar(aes(y = name, 
                x = mean_shap, 
@@ -834,7 +838,7 @@ shapley_reuss_data <- shapley_reuss_data %>%
   filter(name %in% focal_variables)
 
 
-pdf(paste0('figures-march2023-v2-allsp/', "shap_local_reuss", ".pdf"), width = 10, height = 5)
+pdf(paste0(fig_dir_allsp, "shap_local_reuss", ".pdf"), width = 10, height = 5)
 ggplot(data = shapley_reuss_data) + 
   geom_bar(aes(y = name, 
                x = mean_shap, 
@@ -916,7 +920,7 @@ shapley_sense_data <- shapley_sense_data %>%
   filter(name %in% focal_variables)
 
 
-pdf(paste0('figures-march2023-v2-allsp/', "shap_local_sense", ".pdf"), width = 10, height = 5)
+pdf(paste0(fig_dir_allsp, "shap_local_sense", ".pdf"), width = 10, height = 5)
 ggplot(data = shapley_sense_data) + 
   geom_bar(aes(y = name, 
                x = mean_shap, 

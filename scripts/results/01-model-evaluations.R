@@ -162,6 +162,9 @@ metrics_text <- metrics_mean %>%
 # here we also include Thymallus to ensure we have a more cold-affinity species for comparison
 subset_sp <- sort(unique(c(metrics_text$species_name, 'Thymallus thymallus')))
 
+# save subset of species vector for future work
+saveRDS(subset_sp, paste0(fig_dir, 'evaluations/subset_sp.RDS'))
+
 # plot of auc vs. mcc
 auc_mcc <- ggplot(metrics_mean) + 
   geom_linerange(aes(y = mcc_fn1, xmin = auc_fn1 - auc_fn2, xmax = auc_fn1 + auc_fn2), col = 'gray75') + 

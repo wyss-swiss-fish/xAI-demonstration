@@ -12,19 +12,19 @@ dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Na
 dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
 # figure directory
-fig_dir <- "figures/figures-march2023-v5"
+fig_dir <- "figures_500m/figures-april-v1"
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_MARCH_v5"
+RUN <- "ubelix_SDM_RF_APRIL_500m_v1"
 
 # get species of interest
-records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
-# sp_list <- list.files(paste0('D:/sdm-pipeline/sdm-run/', RUN))
+records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010_500m.csv'))
+sp_list <- list.files(paste0('D:/sdm-pipeline/sdm-run/', RUN))
 # sp_list <- unique(records_table$species_name)
-sp_list <- sort(c('Thymallus thymallus', 'Squalius cephalus', 
-             'Barbus barbus', 'Gobio gobio', 
-             'Alburnoides bipunctatus', 'Perca fluviatilis', 
-             'Lampetra planeri'))
+#sp_list <- sort(c('Thymallus thymallus', 'Squalius cephalus', 
+#             'Barbus barbus', 'Gobio gobio', 
+#             'Alburnoides bipunctatus', 'Perca fluviatilis', 
+#             'Lampetra planeri'))
  
 
 # get directories for focal shapley objects
@@ -57,11 +57,11 @@ env_data <- rast(paste0(dd_env, '/ch-rasters/final-raster-set/all_env_data_RHEIN
 #### 3. Load all spatial objects ----
 
 # read in elevation raster
-base_rast <- rast(paste0(dd_env, "ch-rasters/final-raster-set/all_env_data_RHEIN_RESIDUALS.tif"))
+base_rast <- rast(paste0(dd_env, "ch-rasters/final-raster-set/all_env_data_RHEIN_RESIDUALS_500m.tif"))
 base_rast <- base_rast[[1]]
 
 # all env rast
-all_env_rast <- trim(rast(paste0(dd_env, "ch-rasters/final-raster-set/all_env_data_RHEIN_RESIDUALS.tif")))
+all_env_rast <- trim(rast(paste0(dd_env, "ch-rasters/final-raster-set/all_env_data_RHEIN_RESIDUALS_500m.tif")))
 
 # set crs
 target_crs <- "epsg:3035"
@@ -143,19 +143,37 @@ vars <- c('ecoF_discharge_max_log10',
           'local_asym_cl_log10',
           'local_dis2lake',
           'ecoF_eco_mean', 
+          'stars_lu_crp_p_e',
+          'local_tcd_0.1_log10', 
           'local_imd_log10',
+          'stars_lud_m_m_e',
           'local_wet',
-          'local_flood')
+          'local_flood',
+          'stars_n_ch_m_e',
+          'stars_p_ch_m_e',
+          'stars_isct_m_e')
 
 # set vars
 vars_shap <- paste0(vars, "_SHAP")
 
 # rename variables
-vars_renamed = c('discharge', 'slope', 'flow velocity', 
-                 'temperature max', 'temperature min', 
-                 'connectivity', 'distance to lake', 
-                 'ecomorphology', 'urbanisation',
-                 'wetland', 'floodplains')
+vars_renamed = c('discharge', 
+                 'slope', 
+                 'flow velocity', 
+                 'temperature max', 
+                 'temperature min', 
+                 'connectivity', 
+                 'distance to lake', 
+                 'ecomorphology', 
+                 'cropland', 
+                 'tree cover', 
+                 'urbanisation',
+                 'livestock',
+                 'wetland', 
+                 'floodplains', 
+                 'nitrogen', 
+                 'phosphorous', 
+                 'insecticide')
 
 vars_renamed <- cbind(vars_shap, vars_renamed)
 
@@ -611,6 +629,21 @@ ggplot(data = all_shap_env_pa %>%
   ylab('effect on habitat suitability \n (shapley value)')
 dev.off()
 
+pdf(paste0(fig_dir_allsp, "shap_select_rc_all", ".pdf"), width = 20, height = 20)
+ggplot(data = all_shap_env_pa %>% sample_n(., 50000)) +
+  geom_point(aes(x = env, y = shapley)) +
+  #geom_ma(aes(x = env, y = shapley), col = 'black') + 
+  facet_grid(species_name ~ vars_renamed, scales = 'free_x') +
+  geom_hline(aes(yintercept = 0)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        aspect.ratio = 1, 
+        legend.position = 'bottom') +
+  scale_y_continuous(limits = c(min_y, max_y)) +
+  scale_colour_viridis_c(name = 'variable importance') + 
+  xlab('environmental variable') + 
+  ylab('effect on habitat suitability \n (shapley value)')
+dev.off()
 
 #### 10. Extract certain regions and see focal species responses ----
 

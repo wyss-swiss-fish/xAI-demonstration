@@ -340,12 +340,9 @@ pdf(paste0(fig_dir, 'spatial_shap_example/response-curves/', var_i, '.pdf'), hei
 
 #### 7. Estimate area of threatened natural range ----
 
-# get areas that are positive for discharge, slope, temperature and livestock
-# create emtpy raster
-s <- shap_rast_pa_i[[1]]
-values(s) <- NA
-names(s) <- 'natural'
 
+# find areas where shapley values for natural niche factors (discharge, flow velocity and temperature) 
+# are positive for Alburnoides bipunctatus
 natural <- sum(c(shap_rast_pa_i[[grep('discharge', names(shap_rast_pa_i))]] > 0, 
                  shap_rast_pa_i[[grep('flow velocity', names(shap_rast_pa_i))]] > 0, 
                  shap_rast_pa_i[[grep('temperature', names(shap_rast_pa_i))]]) > 0)
@@ -353,23 +350,25 @@ all_natural <- natural == 3
 plot(natural)
 plot(all_natural)
 
+# get an index of 'naturalness' which is the sum of the shapley contributions of all natural factors
 natural_index <- sum(c(shap_rast_pa_i[[grep('discharge', names(shap_rast_pa_i))]], 
-                 shap_rast_pa_i[[grep('flow velocity', names(shap_rast_pa_i))]], 
-                 shap_rast_pa_i[[grep('temperature', names(shap_rast_pa_i))]]))
-natural_index[natural_index<0] <- 0
+                       shap_rast_pa_i[[grep('flow velocity', names(shap_rast_pa_i))]], 
+                       shap_rast_pa_i[[grep('temperature', names(shap_rast_pa_i))]]))
+natural_index[natural_index < 0] <- 0
 
-# which areas are negative for connectivity or livestock
+# which areas are shapley vales negative for connectivity or floodplain area
 threatened <- sum(c(shap_rast_pa_i[[grep('connectivity', names(shap_rast_pa_i))]] < 0, 
                     shap_rast_pa_i[[grep('floodplains', names(shap_rast_pa_i))]] < 0))
 
+# find areas where shapley values are negative for 'threats' but shapley values are positive for natural niche factors
 neg_con <- shap_rast_pa_i[[grep('connectivity', names(shap_rast_pa_i))]] < 0 & natural == 3
 neg_flood <- shap_rast_pa_i[[grep('floodplains', names(shap_rast_pa_i))]] < 0 & natural == 3
-
 plot(threatened != 0 & natural == 3)
 plot(threatened == 0 & natural == 3)
 plot(neg_con)
 plot(neg_flood)
 
+# assign categories of range constraints based on values of the above rasters
 natural_threat_rast <- shap_rast_pa_i[[1]]
 values(natural_threat_rast) <- ifelse(natural[] == 3 & neg_con[] == F & neg_flood[] == F, '2. inside ecological niche',
                                       ifelse(natural[] == 3 & neg_con[] == T & neg_flood[] == F, '3. poor connectivity', 
@@ -378,10 +377,11 @@ values(natural_threat_rast) <- ifelse(natural[] == 3 & neg_con[] == F & neg_floo
                                                            ifelse(natural[] != 3, '1. outside ecological niche', NA)))))
 names(natural_threat_rast) <- 'threat map'
 
-## 1 - natural areas with no threats
-## 2 - natural areas with connectivity negative
-## 3 - natural areas with flood negative
-## 4 - natural areas with both connectivity and floodplains negative
+## 1 - outside of ecological niche
+## 2 - inside of ecological niche and few threats
+## 3 - natural areas with connectivity negative
+## 4 - natural areas with flood negative
+## 5 - natural areas with both connectivity and floodplains negative
 threat_niche <- tm_shape(natural_threat_rast) +
   tm_raster(style = 'fixed',
             breaks = 1:4,
@@ -420,16 +420,17 @@ natural_threat_sf$area_natural <- round(natural_threat_sf$area / natural_area, 2
 # constrained flow velocity = flow velocity is highest negative
 # constrained temperature = temperature is highest negative
 
-
+# find areas where natural niche effects are positive
 natural_pos <- sum(shap_rast_pa_i[[grep('discharge', names(shap_rast_pa_i))]] > 0, 
-               shap_rast_pa_i[[grep('flow velocity', names(shap_rast_pa_i))]] > 0, 
-               shap_rast_pa_i[[grep('temperature', names(shap_rast_pa_i))]] > 0)
+                  shap_rast_pa_i[[grep('flow velocity', names(shap_rast_pa_i))]] > 0, 
+                  shap_rast_pa_i[[grep('temperature', names(shap_rast_pa_i))]] > 0)
 
+# find areas where natural niche effects are negative
 natural_neg<- sum(shap_rast_pa_i[[grep('discharge', names(shap_rast_pa_i))]] < 0, 
                    shap_rast_pa_i[[grep('flow velocity', names(shap_rast_pa_i))]] < 0, 
                    shap_rast_pa_i[[grep('temperature', names(shap_rast_pa_i))]] < 0)
 
-
+# estimate which niche effect is the MOST positive
 which_pos <- shap_rast_pa_i[[grep('discharge|flow velocity|temperature', names(shap_rast_pa_i))]]
 which_pos[natural_pos==0] <- NA
 which_pos <- terra::app(which_pos, which.max)
@@ -438,6 +439,7 @@ values(which_pos) <- ifelse(which_pos[] == 1, 'discharge',
                                    ifelse(which_pos[]==3, 'flow velocity', NA)))
 which_pos[natural_pos!=3] <- NA
 
+# estimate which niche effect is MOST negative
 which_neg <- shap_rast_pa_i[[grep('discharge|flow velocity|temperature', names(shap_rast_pa_i))]]
 which_neg[natural_neg==0] <- NA
 which_neg <- terra::app(which_neg, which.min)
@@ -446,7 +448,7 @@ values(which_neg) <- ifelse(which_neg[] == 1, 'discharge',
                                    ifelse(which_neg[]==3, 'flow velocity', NA)))
 which_neg[natural_neg==0] <- NA
 
-
+# plot positive niche effects
 natural_niche_pos <- tm_shape(which_pos) +
   tm_raster(style = 'fixed',
             palette = c('#6a64ed', '#64edd2', '#e6e61c'), 
@@ -458,6 +460,7 @@ natural_niche_pos <- tm_shape(which_pos) +
   tm_layout(frame = T,
             bg.color = "transparent")
 
+# plot negative niche effects
 natural_niche_neg <- tm_shape(which_neg) +
   tm_raster(style = 'fixed',
             palette = c('#4d0266', '#0297c4', '#aeb800'), 
@@ -469,22 +472,10 @@ natural_niche_neg <- tm_shape(which_neg) +
   tm_layout(frame = T,
             bg.color = "transparent")
 
+# combine into joint plot for manuscript figure
 pdf(paste0(fig_dir, '/spatial_shap_example/natural_range_pos_neg.pdf'), height = 4*0.6, width = 14*0.6)
 tmap_arrange(natural_niche_pos, natural_niche_neg, ncol = 2)
 dev.off()
-
-#### 9. Take these threat area classifications and evaluate how occurrence predictions varied ----
-
-library(ggridges)
-
-threat_occ <- bind_rows(data.frame(level = 'few_threats', values = suit_i[values(natural_threat_rast)[,1]==2][,1]), 
-          data.frame(level = 'negative_con', values = suit_i[values(natural_threat_rast)[,1]==3][,1]), 
-          data.frame(level = 'negative_lud', values = suit_i[values(natural_threat_rast)[,1]==4][,1]), 
-          data.frame(level = 'negative_both', values = suit_i[values(natural_threat_rast)[,1]==5][,1]))
-
-ggplot(data = threat_occ) + 
-  geom_density_ridges2(aes(x = values, y = level, fill = level), bandwidth = 0.05)
-
 
 
 

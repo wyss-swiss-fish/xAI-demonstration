@@ -271,67 +271,68 @@ dev.off()
 #### 6. Make response curves per variable ----
 
 
-    # read in raw shapleys
-    shap_i <- readRDS(shap_pa)
-    # join together shapley values to environmental data for each TEILEZGNR
-    shap_i <- left_join(shap_i %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
-    
-    # get the shapley values
-    grouped_rc_shap <- shap_i %>% 
-      pivot_longer(cols = matches(vars)) %>% 
-      select(name, value) %>% 
-      mutate(shap = ifelse(grepl('_SHAP', name), 'shapley', 'env'),
-             name = gsub('_SHAP', '', name)) %>% 
-      pivot_wider(names_from = shap, values_from = value) %>% 
-      unnest(c(shapley, env)) %>% 
-      filter(!is.na(shapley)) %>% 
-      merge(., vars_renamed %>% 
-              data.frame %>% 
-              mutate(vars_shap = gsub('_SHAP', '', vars_shap)), 
-            by.x = 'name', 
-            by.y = 'vars_shap') %>% 
-      data.frame %>% 
-      arrange(vars_renamed)
-    
-    # get the minimum and maximum
-    min_y <- min(grouped_rc_shap$shapley, na.rm = T)
-    max_y <- max(grouped_rc_shap$shapley, na.rm = T)
-    
-    grouped_rc_shap$vars_renamed <- factor(grouped_rc_shap$vars_renamed, 
-                                           levels = var_imp$var_names[order(var_imp$var_imp, decreasing = T)])
-    
-    
-    # make shapley plot for all variables for a single species
-    dir.create(paste0(fig_dir, 'spatial_shap_example/response-curves/'), recursive = T)
-    
-    for(i in 1:length(unique(grouped_rc_shap$vars_renamed))){
-      var_i <- unique(grouped_rc_shap$vars_renamed)[i]
-      
-      data_i <- grouped_rc_shap %>% 
-        filter(vars_renamed == var_i) %>% 
-        sample_n(1000)
-      
-    pdf(paste0(fig_dir, 'spatial_shap_example/response-curves/', var_i, '.pdf'), height = 4, width = 2)
-      print(ggplot(data = data_i, 
-           aes(x=env, y = shapley, col = shapley)) + 
-        geom_point() +
-      stat_smooth(col = 'black', se = F) +
-      geom_hline(aes(yintercept = 0)) +
-      theme_bw() +
-      theme(panel.grid = element_blank(),
-            aspect.ratio = 2, 
-            #axis.text.x = element_blank(), 
-            #axis.ticks.x = element_blank(), 
-            axis.title = element_blank(), 
-            strip.background = element_blank(),
-            strip.text = element_blank(), 
-            legend.position = 'none') +
-      scale_colour_gradient2(low  = '#bd0f06',
-                             mid  = 'gray90',
-                             high = '#2200c9',
-                             midpoint = 0))
-      dev.off()
-      }
+# read in raw shapleys
+shap_i <- readRDS(shap_pa)
+# join together shapley values to environmental data for each TEILEZGNR
+shap_i <- left_join(shap_i %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
+
+# get the shapley values
+grouped_rc_shap <- shap_i %>% 
+  pivot_longer(cols = matches(vars)) %>% 
+  select(name, value) %>% 
+  mutate(shap = ifelse(grepl('_SHAP', name), 'shapley', 'env'),
+         name = gsub('_SHAP', '', name)) %>% 
+  pivot_wider(names_from = shap, values_from = value) %>% 
+  unnest(c(shapley, env)) %>% 
+  filter(!is.na(shapley)) %>% 
+  merge(., vars_renamed %>% 
+          data.frame %>% 
+          mutate(vars_shap = gsub('_SHAP', '', vars_shap)), 
+        by.x = 'name', 
+        by.y = 'vars_shap') %>% 
+  data.frame %>% 
+  arrange(vars_renamed)
+
+# get the minimum and maximum
+min_y <- min(grouped_rc_shap$shapley, na.rm = T)
+max_y <- max(grouped_rc_shap$shapley, na.rm = T)
+
+grouped_rc_shap$vars_renamed <- factor(grouped_rc_shap$vars_renamed, 
+                                       levels = var_imp$var_names[order(var_imp$var_imp, decreasing = T)])
+
+
+# make shapley plot for all variables for a single species
+dir.create(paste0(fig_dir, 'spatial_shap_example/response-curves/'), recursive = T)
+
+for(i in 1:length(unique(grouped_rc_shap$vars_renamed))){
+  var_i <- unique(grouped_rc_shap$vars_renamed)[i]
+  
+  data_i <- grouped_rc_shap %>% 
+    filter(vars_renamed == var_i) %>% 
+    sample_n(5000)
+  
+pdf(paste0(fig_dir, 'spatial_shap_example/response-curves/', var_i, '.pdf'), height = 4, width = 2)
+  print(ggplot(data = data_i, 
+       aes(x=env, y = shapley, col = shapley)) + 
+    geom_point() +
+  stat_smooth(col = 'black', se = F) +
+  geom_hline(aes(yintercept = 0)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        aspect.ratio = 2, 
+        #axis.text.x = element_blank(), 
+        #axis.ticks.x = element_blank(), 
+        axis.title = element_blank(), 
+        strip.background = element_blank(),
+        strip.text = element_blank(), 
+        legend.position = 'none') +
+  scale_colour_gradient2(low  = '#bd0f06',
+                         mid  = 'gray90',
+                         high = '#2200c9',
+                         midpoint = 0))
+  dev.off()
+  
+  }
 
 
 

@@ -476,9 +476,3 @@ natural_niche_neg <- tm_shape(which_neg) +
 pdf(paste0(fig_dir, '/spatial_shap_example/natural_range_pos_neg.pdf'), height = 4*0.6, width = 14*0.6)
 tmap_arrange(natural_niche_pos, natural_niche_neg, ncol = 2)
 dev.off()
-
-
-
-
-
-

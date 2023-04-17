@@ -18,7 +18,7 @@ dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nat
 fig_dir <- "figures/ubelix_SDM_RF_MARCH_v6/"
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_MARCH_v5"
+RUN <- "ubelix_SDM_RF_MARCH_v6"
 
 # get species of interest
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
@@ -66,8 +66,8 @@ vars <- c('ecoF_discharge_max_log10',
           'stars_t_mn_m_c',
           'local_asym_cl_log10',
           'local_dis2lake',
-          'ecoF_eco_mean', 
-          'local_imd_log10',
+          'ecoF_eco_mean_ele_residual', 
+          'local_imd_log10_ele_residual',
           'local_wet',
           'local_flood')
 
@@ -212,12 +212,12 @@ shap_plot <- tm_shape(shap_rast_plot) +
     style = "cont",
     palette = c('#bd0f06','gray90', '#2200c9'), 
     midpoint = 0,
-    legend.reverse = TRUE,
+    legend.reverse = F,
     title = '',
     legend.is.portrait = F, 
-    legend.show = T
+    legend.show = F
   ) +
-  tm_facets(ncol = 2, 
+  tm_facets(ncol = 4, 
             free.scales.raster = T) +
   tm_shape(river_intersect_lakes) + 
   tm_lines(legend.show = F, col = 'gray75') + 
@@ -251,9 +251,16 @@ print(tm_shape(pa_map[[1]]) +
 dev.off()
 
 
+# make pdf
 pdf(paste0(fig_dir, '/spatial_shap_example/shap_', sp_list[1], '.pdf'), width = 8, height = 6)
 print(shap_plot) 
 dev.off()
+
+# make png to save space
+png(paste0(fig_dir, '/spatial_shap_example/shap_', sp_list[1], '.png'), width = 3500, height = 1800, res = 300)
+print(shap_plot) 
+dev.off()
+
 
 pdf(paste0(fig_dir, '/spatial_shap_example/shap_legend_', sp_list[1], '.pdf'), width = 2, height = 2)
 print(tm_shape(shap_rast_plot[[1]]) +
@@ -311,7 +318,7 @@ for(i in 1:length(unique(grouped_rc_shap$vars_renamed))){
     filter(vars_renamed == var_i) %>% 
     sample_n(5000)
   
-pdf(paste0(fig_dir, 'spatial_shap_example/response-curves/', var_i, '.pdf'), height = 4, width = 2)
+pdf(paste0(fig_dir, 'spatial_shap_example/response-curves/', var_i, '.pdf'), height = 1.5, width = 3, bg = 'transparent')
   print(ggplot(data = data_i, 
        aes(x=env, y = shapley, col = shapley)) + 
     geom_point() +
@@ -319,13 +326,15 @@ pdf(paste0(fig_dir, 'spatial_shap_example/response-curves/', var_i, '.pdf'), hei
   geom_hline(aes(yintercept = 0)) +
   theme_bw() +
   theme(panel.grid = element_blank(),
-        aspect.ratio = 2, 
+        aspect.ratio = 0.5, 
         #axis.text.x = element_blank(), 
         #axis.ticks.x = element_blank(), 
         axis.title = element_blank(), 
         strip.background = element_blank(),
         strip.text = element_blank(), 
-        legend.position = 'none') +
+        legend.position = 'none', 
+        panel.background = element_blank(), 
+        plot.background = element_blank()) +
   scale_colour_gradient2(low  = '#bd0f06',
                          mid  = 'gray90',
                          high = '#2200c9',

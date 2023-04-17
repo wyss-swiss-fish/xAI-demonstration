@@ -20,7 +20,7 @@ dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nat
 fig_dir <- "figures/ubelix_SDM_RF_MARCH_v6/"
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_MARCH_v5"
+RUN <- "ubelix_SDM_RF_MARCH_v6"
 
 # get species of interest
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
@@ -64,8 +64,8 @@ vars <- c('ecoF_discharge_max_log10',
           'stars_t_mn_m_c',
           'local_asym_cl_log10',
           'local_dis2lake',
-          'ecoF_eco_mean', 
-          'local_imd_log10',
+          'ecoF_eco_mean_ele_residual', 
+          'local_imd_log10_ele_residual',
           'local_wet',
           'local_flood')
 

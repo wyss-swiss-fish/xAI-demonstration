@@ -91,22 +91,26 @@ bbox_catch <- st_bbox(st_buffer(rbind(emme_union, sense_union), 10000))
 #### elevation ----
 
 tmap_mode('plot')
+
+pdf('figures/map_of_catchments.pdf', width = 7, height = 5)
 tm_shape(ch_poly) + 
   tm_borders(col='transparent') + 
-  tm_shape(subcatchments_rhine_union) + 
-  tm_polygons(border.col = 'transparent', fill = 'gray90')+
+  #tm_shape(subcatchments_rhine_union) + 
+  #tm_polygons(border.col = 'transparent', fill = 'gray90')+
   tm_scale_bar(text.size = 1, position = c('left', 'bottom'), color.light = 'gray75') + 
   tm_shape(st_union(lakes, ch_poly)) + 
   tm_borders(col = 'black') + 
   tm_shape(emme_union) + 
-  tm_polygons(border.col = 'black', col = '#9FC131FF', legend.show = F, lwd = 1) + 
+  tm_polygons(border.col = 'red', col = 'gray80', legend.show = F, lwd = 2) + 
   tm_shape(sense_union) + 
-  tm_polygons(border.col = 'black', col = '#FDD20EFF', legend.show = F, lwd = 1) + 
+  tm_polygons(border.col = 'red', col = 'gray80', legend.show = F, lwd = 2) + 
   tm_shape(rivers_rhein %>% arrange(STRAHLE)) + 
   tm_lines(lwd = 'STRAHLE', scale = 3, legend.lwd.show = F) + 
   tm_shape(lakes) + 
-  tm_polygons(col = 'lightblue', border.col = 'black')
-  
+  tm_polygons(col = 'lightblue', border.col = 'black') + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()  
 
 
 

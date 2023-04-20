@@ -26,7 +26,7 @@ contrast_dir <- paste0(fig_dir, 'constrast_species_examples/')
 dir.create(contrast_dir, recursive = T)
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_MARCH_v5"
+RUN <- "ubelix_SDM_RF_MARCH_v6"
 
 # get species of interest
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
@@ -75,8 +75,8 @@ vars <- c('ecoF_discharge_max_log10',
           'stars_t_mn_m_c',
           'local_asym_cl_log10',
           'local_dis2lake',
-          'ecoF_eco_mean', 
-          'local_imd_log10',
+          'ecoF_eco_mean_ele_residual', 
+          'local_imd_log10_ele_residual',
           'local_wet',
           'local_flood')
 
@@ -161,22 +161,22 @@ dev.off()
 #### Example 1. Contrast response curves: coupled but divergent -----
 
 # contrast species
-CouDiv1 <- 'Thymallus thymallus'
-CouDiv2 <- 'Perca fluviatilis'
+CouDiv1 <- 'Oncorhynchus mykiss'
+CouDiv2 <- 'Squalius cephalus'
 
 # variable name
-CouDiv_var <- 'local_dis2lake'
+CouDiv_var <- 'ecoF_eco_mean_ele_residual'
 # shapley name
-CouDiv_shap <- 'local_dis2lake_SHAP'
+CouDiv_shap <- 'ecoF_eco_mean_ele_residual_SHAP'
 
 # environmental label
-env_label = 'distance to lake'
-shap_label = expression(phi1~'distance to lake')
+env_label = 'ecomorphological modification'
+shap_label = expression(phi1~'ecomorphological modification')
 
 # plot titles
-title_CouDiv_mean = expression('Mean distance to lake' ~ phi1)
-title_CouDiv_sd   = expression('S.D. distance to lake' ~ phi1)
-title_CouDiv_raw  = 'Raw distance to lake'
+title_CouDiv_mean = expression('Mean ecomorphological modification' ~ phi1)
+title_CouDiv_sd   = expression('S.D. ecomorphological modification' ~ phi1)
+title_CouDiv_raw  = 'Raw ecomorphological modification'
 
 
 # read in rasters for focal variables
@@ -236,8 +236,8 @@ shap_CouDiv12_wide$col <- ifelse(shap_CouDiv12_wide[CouDiv1] >= shap_CouDiv12_wi
                                      2, 3))
 
 # set the limits
-min_axis <- min(c(shap_CouDiv12_wide[CouDiv2], shap_CouDiv12_wide[CouDiv1]), na.rm = T)
-max_axis <- max(c(shap_CouDiv12_wide[CouDiv2], shap_CouDiv12_wide[CouDiv1]), na.rm = T)
+min_axis <- min(c(shap_CouDiv12_wide[[CouDiv2]], shap_CouDiv12_wide[[CouDiv1]]), na.rm = T)
+max_axis <- max(c(shap_CouDiv12_wide[[CouDiv2]], shap_CouDiv12_wide[[CouDiv1]]), na.rm = T)
 
 pdf(paste0(CouDiv, 'shapley_biplot.pdf'), width = 5, height = 5, bg = 'transparent')
 ggplot(data = shap_CouDiv12_wide, 
@@ -269,7 +269,7 @@ tm_shape(shap_rast_CouDiv1[CouDiv_shap]) +
             legend.is.portrait = F, 
             legend.show = T, 
             midpoint = 0,
-            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 5), 1)
+            #breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 5), 1)
             ) + 
   tm_shape(river_intersect_lakes) + 
   tm_lines(legend.show = F, col = 'gray75') + 
@@ -288,7 +288,7 @@ tm_shape(shap_rast_CouDiv2[CouDiv_shap]) +
             legend.is.portrait = F, 
             legend.show = T, 
             midpoint = 0,
-            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 5), 1)
+            #breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 5), 1)
   ) + 
   tm_shape(river_intersect_lakes) + 
   tm_lines(legend.show = F, col = 'gray75') + 
@@ -302,7 +302,7 @@ dev.off()
 # read in presence predictions for both species
 pres_CouDiv1 <- rast(sp_raster_pres_pa[grepl(CouDiv1, sp_raster_pres_pa)])
 pres_CouDiv2 <- rast(sp_raster_pres_pa[grepl(CouDiv2, sp_raster_pres_pa)])
-pres_CouDiv12 <- mosaic(pres_CouDiv1, pres_CouDiv12)
+pres_CouDiv12 <- mosaic(pres_CouDiv1, pres_CouDiv2)
 
 shap_div_CouDiv1 <- shap_rast_CouDiv1[CouDiv_shap] > shap_rast_CouDiv2[CouDiv_shap] & shap_rast_CouDiv1[CouDiv_shap] > 0
 shap_div_CouDiv2 <- shap_rast_CouDiv2[CouDiv_shap] > shap_rast_CouDiv1[CouDiv_shap] & shap_rast_CouDiv2[CouDiv_shap] > 0
@@ -368,7 +368,7 @@ tm_shape(shap_sd_CouDiv12) +
             title = title_CouDiv_sd,
             legend.is.portrait = F, 
             legend.show = T, 
-            breaks = c(0, 0.1, 0.2, 0.25)
+            #breaks = c(0, 0.1, 0.2, 0.25)
   ) + 
   tm_shape(river_intersect_lakes) + 
   tm_lines(legend.show = F, col = 'gray75') + 
@@ -385,7 +385,8 @@ tm_shape(env_data[CouDiv_var]) +
             palette = rev(c('#bd0f06','gray90', '#2200c9')), 
             legend.is.portrait = F, 
             title = title_CouDiv_raw, 
-            legend.show = T) + 
+            legend.show = T, 
+            midpoint = 0) + 
   tm_shape(river_intersect_lakes) + 
   tm_lines(legend.show = F, col = 'gray75') + 
   tm_shape(lakes) +
@@ -601,35 +602,57 @@ tm_shape(env_data['local_asym_cl_log10']) +
 dev.off()
 
 
-#### Example 3. Contrast response curves for low effect of cropland across target species ----
+
+#### Example 3. Contrast response curves for decoupled effects ----
+
+
+# contrast species
+DeCou1 <- 'Cottus gobio'
+DeCou2 <- 'Gobio gobio'
+
+# variable name
+DeCou_var <- 'local_imd_log10_ele_residual'
+# shapley name
+DeCou_shap <- 'local_imd_log10_ele_residual_SHAP'
+
+# environmental label
+env_label = 'urbanisation'
+shap_label = expression(phi1~'urbanisation')
+
+# plot titles
+title_DeCou_mean = expression('Mean urbanisation' ~ phi1)
+title_DeCou_sd   = expression('S.D. urbanisation' ~ phi1)
+title_DeCou_raw  = 'Raw urbanisation'
+
 
 # read in rasters for focal variables
-shap_rast_Lp <- rast(paste0(shap_dirs[grepl('Lampetra', shap_dirs)], "/shap_raster_pa.TIF"))
-shap_rast_Ts <- rast(paste0(shap_dirs[grepl('Telestes', shap_dirs)], "/shap_raster_pa.TIF"))
+shap_rast_DeCou1 <- rast(paste0(shap_dirs[grepl(DeCou1, shap_dirs)], "/shap_raster_pa.TIF"))
+shap_rast_DeCou2 <- rast(paste0(shap_dirs[grepl(DeCou2, shap_dirs)], "/shap_raster_pa.TIF"))
 
 # read in raw shapleys
-shap_Lp <- readRDS(shap_pa[grepl('Lampetra', shap_pa)])
-shap_Ts <- readRDS(shap_pa[grepl('Telestes', shap_pa)])
+shap_DeCou1 <- readRDS(shap_pa[grepl(DeCou1, shap_pa)])
+shap_DeCou2 <- readRDS(shap_pa[grepl(DeCou2, shap_pa)])
 
 # join together shapley values to environmental data for each TEILEZGNR
-shap_Lp <- left_join(shap_Lp %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
-shap_Ts <- left_join(shap_Ts %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
+shap_DeCou1 <- left_join(shap_DeCou1 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
+shap_DeCou2 <- left_join(shap_DeCou2 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
 
 # get variable of interest
-shap_Lp_Ts <- bind_rows(shap_Lp, shap_Ts) %>% 
-  select(species_name, TEILEZGNR, matches('stars_lu_crp_p_e_ele_residual'))
+shap_DeCou12 <- bind_rows(shap_DeCou1, shap_DeCou2) %>% 
+  select(species_name, TEILEZGNR, matches(DeCou_var))
 
 # contrasting species response curves
-Lp_Ts <- 'figures-march2023-v2/constrast_species_examples/Lp_Ts/'
-dir.create(Lp_Ts, recursive =  T)
+DeCou <- paste0(contrast_dir, 'Decoupled/')
+dir.create(DeCou, recursive =  T)
 
-pdf(paste0(Lp_Ts, 'response_curves.pdf'), width = 5, height = 5, bg = 'transparent')
-ggplot(data = shap_Lp_Ts, aes(x = stars_lu_crp_p_e_ele_residual, 
-                              y = stars_lu_crp_p_e_ele_residual_SHAP)) + 
+pdf(paste0(DeCou, 'response_curves.pdf'), width = 5, height = 5, bg = 'transparent')
+ggplot(data = shap_DeCou12 %>% sample_n(., nrow(.)), 
+       aes(x = .data[[DeCou_var]], y = .data[[DeCou_shap]])) + 
   geom_jitter(aes(pch = species_name, col = species_name)) + 
   stat_smooth(aes(group = species_name, lty = species_name), 
-              col = 'black', se = F, method = 'gam') + 
+              col = 'black',se = F, method = 'lm', formula = y ~ x + I(x^2) + I(x^3) + I(x^4)) + 
   geom_hline(aes(yintercept = 0), lwd = 0.25) + 
+  scale_colour_manual(values = c('gray50', 'gray75')) + 
   theme_bw() +  
   theme(panel.grid = element_blank(),
         aspect.ratio = 0.5, 
@@ -641,85 +664,103 @@ ggplot(data = shap_Lp_Ts, aes(x = stars_lu_crp_p_e_ele_residual,
         panel.background = element_blank(), 
         panel.border = element_blank(), 
         plot.background = element_blank()) + 
-  ylab('Shapley value') + 
-  xlab('Environmental value') + 
-  scale_colour_manual(values = c('gray50', 'gray75')) + 
-  ylim(c(-0.1, 0.1))
+  ylab(shap_label) + 
+  xlab(env_label) + 
+  guides(colour = guide_legend(override.aes = list(size=6)))
 dev.off()
 
 # make wide for plot of shapley values for each species against eachother
-shap_Lp_Ts_wide <- shap_Lp_Ts %>% 
-  pivot_wider(names_from = 'species_name', values_from = 'stars_lu_crp_p_e_ele_residual_SHAP')
+shap_DeCou12_wide <- shap_DeCou12 %>% 
+  pivot_wider(names_from = 'species_name', values_from = all_of(DeCou_shap))
 
-pdf(paste0(Lp_Ts, 'shapley_biplot.pdf'), width = 5, height = 5, bg = 'transparent')
-ggplot(data = shap_Lp_Ts_wide, 
-       aes(x = `Lampetra planeri`, y = `Telestes souffia`, col = (`Lampetra planeri` + `Telestes souffia`)/2)) + 
+shap_DeCou12_wide$col <- ifelse(shap_DeCou12_wide[[DeCou1]] > 0 & shap_DeCou12_wide[[DeCou2]] > 0, 1, 
+                                 ifelse(shap_DeCou12_wide[[DeCou1]] < 0 & shap_DeCou12_wide[[DeCou2]] < 0, 2, 3))
+
+
+# set the limits
+max_axis <- max(c(shap_DeCou12_wide[[DeCou2]], shap_DeCou12_wide[[DeCou1]]), na.rm = T)
+min_axis <- min(c(shap_DeCou12_wide[[DeCou2]], shap_DeCou12_wide[[DeCou1]]), na.rm = T)
+
+pdf(paste0(DeCou, 'shapley_biplot.pdf'), width = 5, height = 5, bg = 'transparent')
+ggplot(data = shap_DeCou12_wide, 
+       aes(x = .data[[DeCou1]], y = .data[[DeCou2]], col = (.data[[DeCou1]] + .data[[DeCou2]]) / 2)) + 
   geom_jitter() + 
   geom_hline(aes(yintercept = 0), lwd = 0.25) + 
   geom_vline(aes(xintercept = 0), lwd = 0.25) + 
   scale_colour_gradientn(
     colors=c('#bd0f06','gray90', '#2200c9'),
-    values=scales::rescale(c(-0.2, -0.1, 0, 0.1, 0.2)),
-    limits=c(-max(abs(range(shap_Lp_Ts$stars_lu_crp_p_e_ele_residual_SHAP, na.rm = T))), 
-             max(abs(range(shap_Lp_Ts$stars_lu_crp_p_e_ele_residual_SHAP, na.rm = T))))) +
+    values=scales::rescale(c(-0.1, -0.02, 0, 0.02 , 0.1)),
+    limits=c(-max(abs(range(shap_DeCou12_wide[c(DeCou1, DeCou2)], na.rm = T))), 
+             max(abs(range(shap_DeCou12_wide[c(DeCou1, DeCou2)], na.rm = T))))) +
   theme_bw() + 
   theme(panel.grid = element_blank(), 
         legend.position = 'none', 
-        aspect.ratio = 0.5, 
+        aspect.ratio = 0.5,  
         panel.background = element_blank(), 
         panel.border = element_blank(), 
         plot.background = element_blank()) + 
-  xlab('Shapley values: Lampetra planeri') + 
-  ylab('Shapley values: Telestes souffia') + 
+  xlab(bquote(phi1~ .(DeCou1))) + 
+  ylab(bquote(phi1~ .(DeCou2))) + 
   geom_abline(lwd = 0.25) + 
-  xlim(c(-0.1, 0.1)) + 
-  ylim(c(-0.1, 0.1))
+  xlim(c(min_axis, max_axis)) + 
+  ylim(c(min_axis, max_axis))
 dev.off()
 
-tm_shape(shap_rast_Lp['stars_lu_crp_p_e_ele_residual_SHAP']) +
-  tm_raster(
-    style = "cont",
-    palette = "RdBu",
-    legend.reverse = F,
-    title = 'Shapley values',
-    legend.is.portrait = F, 
-    legend.show = T
-  ) +
-  tm_shape(river_intersect_lakes) + 
-  tm_lines(legend.show = F, col = 'gray75') + 
-  tm_shape(lakes) +
-  tm_polygons(border.col = "gray75", col = "white", legend.show = F, lwd = 0.01) + 
-  tm_layout(bg.color = "transparent", 
-            title = 'Lampetra planeri')
-
-tm_shape(shap_rast_Ts['stars_lu_crp_p_e_ele_residual_SHAP']) +
-  tm_raster(
-    style = "cont",
-    palette = "RdBu",
-    legend.reverse = F,
-    title = 'Shapley values',
-    legend.is.portrait = F, 
-    legend.show = T
-  ) +
-  tm_shape(river_intersect_lakes) + 
-  tm_lines(legend.show = F, col = 'gray75') + 
-  tm_shape(lakes) +
-  tm_polygons(border.col = "gray75", col = "white", legend.show = F, lwd = 0.01) + 
-  tm_layout(bg.color = "transparent", 
-            title = 'Telestes souffia')
-
-
-shap_Ts_Lp <- mean(c(shap_rast_Ts$stars_lu_crp_p_e_ele_residual_SHAP, shap_rast_Lp$stars_lu_crp_p_e_ele_residual_SHAP))
-
-pdf(paste0(Lp_Ts, 'contrast_map.pdf'), width = 5, height = 5, bg = 'transparent')
-tm_shape(shap_Ts_Lp) +
+pdf(paste0(DeCou, '/DeCou1_map.pdf'), width = 5, height = 5, bg = 'transparent')
+tm_shape(shap_rast_DeCou1[DeCou_shap]) +
   tm_raster(style = "cont",
             palette = c('#bd0f06','gray90', '#2200c9'),
             legend.reverse = F,
-            title = 'Mean cropland shapley value',
+            title = DeCou1,
             legend.is.portrait = F, 
             legend.show = T, 
-            breaks = c(-0.2, -0.1, 0, 0.1, 0.2), 
+            midpoint = 0,
+            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 5), 1)
+  ) + 
+  tm_shape(river_intersect_lakes) + 
+  tm_lines(legend.show = F, col = 'gray75') + 
+  tm_shape(lakes) +
+  tm_borders(col = "gray75", lwd = 0.01) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+pdf(paste0(DeCou, '/DeCou2_map.pdf'), width = 5, height = 5, bg = 'transparent')
+tm_shape(shap_rast_DeCou2[DeCou_shap]) +
+  tm_raster(style = "cont",
+            palette = c('#bd0f06','gray90', '#2200c9'),
+            legend.reverse = F,
+            title = DeCou2,
+            legend.is.portrait = F, 
+            legend.show = T, 
+            midpoint = 0,
+            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 5), 1)
+  ) + 
+  tm_shape(river_intersect_lakes) + 
+  tm_lines(legend.show = F, col = 'gray75') + 
+  tm_shape(lakes) +
+  tm_borders(col = "gray75", lwd = 0.01) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+# read in presence predictions for both species
+pres_DeCou1 <- rast(sp_raster_pres_pa[grepl(DeCou1, sp_raster_pres_pa)])
+pres_DeCou2 <- rast(sp_raster_pres_pa[grepl(DeCou2, sp_raster_pres_pa)])
+pres_DeCou12 <- mosaic(pres_DeCou1, pres_DeCou2)
+
+# take the mean of the shapley values
+shap_mean_DeCou12 <- app(c(shap_rast_DeCou1[DeCou_shap], shap_rast_DeCou2[DeCou_shap]), mean)
+
+# make maps of mean shapley values across species
+pdf(paste0(DeCou, 'mean_map.pdf'), width = 5, height = 5, bg = 'transparent')
+tm_shape(shap_mean_DeCou12) +
+  tm_raster(style = "cont",
+            palette = c('#bd0f06','gray90', '#2200c9'),
+            legend.reverse = F,
+            title = title_DeCou_mean,
+            legend.is.portrait = F, 
+            legend.show = T, 
             midpoint = 0
   ) + 
   tm_shape(river_intersect_lakes) + 
@@ -730,25 +771,48 @@ tm_shape(shap_Ts_Lp) +
             frame = F)
 dev.off()
 
-pdf(paste0(Lp_Ts, 'raw_map.pdf'), width = 5, height = 5, bg = 'transparent')
-# plot the environmental data
-tm_shape(env_data['stars_lu_crp_p_e_ele_residual']) + 
-  tm_raster(style = 'cont', 
-            palette = c('#bd0f06','gray90', '#2200c9'), 
+# take the sd of the shapley values
+shap_sd_DeCou12 <- app(c(shap_rast_DeCou1[DeCou_shap], shap_rast_DeCou2[DeCou_shap]), sd)
+
+# make maps of mean shapley values across species
+pdf(paste0(DeCou, 'sd_map.pdf'), width = 5, height = 5, bg = 'transparent')
+tm_shape(shap_sd_DeCou12) +
+  tm_raster(style = "cont",
+            palette = c('gray90', '#bd0f06'),
+            legend.reverse = F,
+            title = title_DeCou_sd,
             legend.is.portrait = F, 
-            title = 'Cropland proportion cover', 
-            breaks = c(quantile(env_data['stars_lu_crp_p_e_ele_residual'][], 0.025, na.rm = T), 
-                       quantile(env_data['stars_lu_crp_p_e_ele_residual'][], 0.975, na.rm = T)), 
-            midpoint = NA, 
-            legend.show = F) + 
+            legend.show = T, 
+            breaks = c(0, 0.1, 0.2, 0.25)
+  ) + 
   tm_shape(river_intersect_lakes) + 
   tm_lines(legend.show = F, col = 'gray75') + 
   tm_shape(lakes) +
   tm_borders(col = "gray75", lwd = 0.01) + 
   tm_layout(bg.color = "transparent", 
-            legend.title.size = 1, 
             frame = F)
 dev.off()
+
+
+# plot the environmental data
+pdf(paste0(DeCou, 'raw_map.pdf'), width = 5, height = 5, bg = 'transparent')
+tm_shape(env_data[DeCou_var]) + 
+  tm_raster(style = 'cont', 
+            palette = rev(c('#bd0f06','gray90', '#2200c9')), 
+            legend.is.portrait = F, 
+            title = title_DeCou_raw, 
+            legend.show = T, 
+            midpoint = 0) + 
+  tm_shape(river_intersect_lakes) + 
+  tm_lines(legend.show = F, col = 'gray75') + 
+  tm_shape(lakes) +
+  tm_borders(col = "gray75", lwd = 0.01) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+
+
 
 
 #### Catchment force plots ----
@@ -800,6 +864,7 @@ shapley_focal <- bind_rows(shapley_focal_list) %>% tibble
 # join in subcatchment information
 shapley_focal <- left_join(shapley_focal, subcatchment_2km_names)
 
+
 # read in baseline predictions from raw models 
 baseline_values <- sapply(1:length(sp_list), function(x){ 
   
@@ -844,6 +909,12 @@ shapley_catchment_summary <- shapley_focal %>%
   left_join(., baseline_prediction) %>% 
   left_join(., catchment_prediction)
 
+
+shapley_catchment_summary %>% 
+  filter(species_name == 'Perca fluviatilis', 
+         catchment == 'Sense') %>% View
+
+
 # quick example plot to see if the data are in the correct format
 ggplot(data = shapley_catchment_summary) + 
   geom_point(aes(y = species_name, x = (baseline_prediction)), col = 'black') + 
@@ -863,36 +934,147 @@ levels <- shapley_catchment_summary %>%
 shapley_catchment_summary$vars_renamed <- factor(shapley_catchment_summary$vars_renamed, 
                                                  levels = levels)
 
+
+## Read in raw data used to fit the models
+pa_data <- read.csv(paste0(dd, '/sdm-pipeline/species-records-final/fish-presenceAbsence_2010.csv'))
+
+# take only presences
+pa_data_2 <- pa_data %>% 
+  filter(occ == 1, 
+         species_name %in% sp_list) %>% 
+  st_as_sf(., coords = c('X', 'Y'), crs = 'wgs84') %>% 
+  # transform to ETRS89
+  st_transform(., crs = 'epsg:3035')
+
+# get the raw catchments
+all_catchments <- st_read(subcatchment_file, layer = "Teileinzugsgebiet") %>%
+  filter(TEZGNR40 %in% catchments$TEZGNR40) %>%
+  # convert to target crs
+  st_transform(., crs = target_crs) %>% 
+  select(TEZGNR40)
+
+# join in catchment data
+pa_data_catchments <- st_join(pa_data_2, all_catchments) %>% 
+  left_join(., catchments)
+
+# create column to colour by
+pa_data_catchment_simple <- pa_data_catchments %>% 
+  filter(!is.na(catchment)) %>% 
+  select(species_name, catchment) %>% 
+  st_drop_geometry() %>% 
+  unique() %>% 
+  mutate(present_in_sense = ifelse(.$catchment == 'Sense', 1, 0), 
+         present_in_emme  = ifelse(.$catchment == 'Emme', 1, 0))
+
+# join with summary species
+shapley_catchment_summary <- left_join(shapley_catchment_summary, pa_data_catchment_simple) %>% 
+  mutate(present_in_sense = ifelse(is.na(.$present_in_sense), 0, .$present_in_sense), 
+         present_in_emme = ifelse(is.na(.$present_in_emme), 0, .$present_in_emme))
+  
+
+# make output directories
+force_dir <- paste0(fig_dir, 'local_force_plots')
+dir.create(paste0(force_dir), recursive = T)
+
+shapley_catchment_summary$species_name <- plyr::revalue(shapley_catchment_summary$species_name, 
+                                                        c('Alburnoides bipunctatus' = 'A. bipunctatus', 
+                                                          'Barbus barbus' = 'B. barbus', 
+                                                          'Cottus gobio' = 'C. gobio', 
+                                                          'Gobio gobio' = 'G. gobio', 
+                                                          'Lampetra planeri' = 'L. planeri', 
+                                                          'Oncorhynchus mykiss' = 'O. mykiss', 
+                                                          'Perca fluviatilis' = 'P. fluviatilis', 
+                                                          'Squalius cephalus' = 'S. cephalus', 
+                                                          'Thymallus thymallus' = 'T. thymallus'))
+
+
+# remove wetland due to generally weak effects
+shapley_catchment_summary <- shapley_catchment_summary %>% filter(vars_renamed != 'wetland')
+
+# check directions of effects
+pos <- '#528F70'
+neg <- '#FF8000'
+direction <- rev(c(neg, pos, neg, neg, pos, pos, neg, pos, neg, pos))
+
+# make force plots contrasting mean responses across emme and sense
+pdf(paste0(force_dir, '/emme_sense_force.pdf'), width = 10, height = 5)
 ggplot(data = shapley_catchment_summary) + 
   theme_minimal() + 
   theme(panel.grid = element_blank(), 
         legend.position = 'none', 
         axis.line.x = element_line(), 
-        panel.border = element_rect(fill = 'transparent'), 
-        axis.text.x = element_text(size = 7), 
+        axis.text.x = element_text(size = 6, angle = 45, hjust = 1, vjust = 1), 
         axis.ticks = element_line(), 
         strip.text.x = element_text(face = 'italic'), 
-        strip.text.y = element_text(face = 'bold', size = 12), 
-        aspect.ratio = 1.75) + 
+        strip.text.y = element_text(face = 'bold', size = 12),
+        #panel.border = element_rect(fill = 'transparent'), 
+        aspect.ratio = 1.75, 
+        text = element_text(colour = 'black'), 
+        panel.border = element_blank(), 
+        panel.spacing.y = unit(2, "lines"), 
+        panel.spacing.x = unit(1, "lines"), 
+        axis.ticks.y = element_blank(), 
+        axis.text.y = element_text(colour = direction)) + 
   facet_grid(catchment~species_name, scales = 'free_x') + 
-  geom_segment(aes(xend = mean_shap + baseline_prediction, 
+  
+  #draw segments
+  geom_segment(data = shapley_catchment_summary %>% 
+                 filter(catchment == 'Emme'), 
+               aes(xend = mean_shap + baseline_prediction, 
                    x = baseline_prediction, 
                    y = vars_renamed, yend = vars_renamed, 
-                   col = mean_shap, lwd = abs(mean_shap)),
-               lineend = 'butt', linejoin = 'bevel') + 
-  geom_point(aes(x = mean_shap + baseline_prediction, 
+                   col = mean_shap, lwd = abs(mean_shap), 
+                   alpha = as.factor(present_in_emme)),
+               lineend = 'butt', linejoin = 'mitre') + 
+  geom_segment(data = shapley_catchment_summary %>% 
+                 filter(catchment == 'Sense'), 
+               aes(xend = mean_shap + baseline_prediction, 
+                   x = baseline_prediction, 
+                   y = vars_renamed, yend = vars_renamed, 
+                   col = mean_shap, lwd = abs(mean_shap), 
+                   alpha = as.factor(present_in_sense)),
+               lineend = 'butt', linejoin = 'mitre') + 
+  
+  # draw vertical lines
+  geom_vline(data = shapley_catchment_summary %>% 
+               filter(catchment == 'Emme'), 
+             aes(xintercept = baseline_prediction), size = 0.2) + 
+  geom_vline(data = shapley_catchment_summary %>% 
+               filter(catchment == 'Sense'), 
+             aes(xintercept = baseline_prediction), size = 0.2) + 
+  
+  # draw points
+  geom_point(data = shapley_catchment_summary %>% 
+               filter(catchment == 'Emme'), 
+             aes(x = mean_shap + baseline_prediction, 
                  y = vars_renamed, 
                  col = mean_shap, 
-                 size = abs(mean_shap)*2)) + 
-  geom_vline(aes(xintercept = baseline_prediction), size = 1, col = 'gray75') + 
+                 size = abs(mean_shap)*2, 
+                 pch = as.factor(present_in_emme)),
+             fill = 'white') + 
+  geom_point(data = shapley_catchment_summary %>% 
+               filter(catchment == 'Sense'), 
+             aes(x = mean_shap + baseline_prediction, 
+                 y = vars_renamed, 
+                 col = mean_shap, 
+                 size = abs(mean_shap)*2, 
+                 pch = as.factor(present_in_sense)),
+             fill = 'white') + 
+  
+  
+  # scales
   scale_colour_gradientn(
-                           colors=c('#bd0f06','gray90', '#2200c9'),
-                           values=scales::rescale(c(-0.2, -0.02, 0, 0.02 , 0.2)),
+                           colors=c('#bd0f06','gray50', '#2200c9'),
+                           values=scales::rescale(c(-0.2, -0.01, 0, 0.01 , 0.2)),
                            limits=c(-max(abs(range(shapley_catchment_summary$mean_shap, na.rm = T))), 
                                     max(abs(range(shapley_catchment_summary$mean_shap, na.rm = T))))) +
-  scale_size_continuous(range = c(0.1, 3)) + 
+  #scale_size_continuous(range = c(0.1, 3)) + 
+  scale_shape_manual(values = c(21,19)) + 
+  scale_alpha_manual(values = c(0.2, 1)) + 
   xlab('Change in local prediction from average prediction') + 
-  ylab(NULL)
+  ylab(NULL) +
+  coord_cartesian(clip = "off")
+dev.off()
 
 
 

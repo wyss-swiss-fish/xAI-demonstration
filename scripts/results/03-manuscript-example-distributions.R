@@ -344,11 +344,141 @@ pdf(paste0(fig_dir, 'spatial_shap_example/response-curves/', var_i, '.pdf'), hei
   }
 
 
+#### 7. Correlation between shapley values ----
+library(GGally)
+library(corrplot)
+# create unique wide matrix
+unique_shap_wide <- unique(all_shap_df)
+
+# change names
+names(unique_shap_wide) <- gsub('\\.', '  ', names(unique_shap_wide))
+
+# create correlation matrix
+cor_shap <- cor(unique_shap_wide, method = 'spearman')
+upr_tri_shap <- cor_shap[upper.tri(cor_shap)]
+median(abs(upr_tri_shap),na.rm = T)
+summary(abs(upr_tri_shap),na.rm = T)
+sd(abs(upr_tri_shap),na.rm = T)
+
+# plot correlation matrix
+pdf(paste0(fig_dir, 'spatial_shap_example/', 'shap_correlations.pdf'), width = 6, height = 6)
+ggcorr(unique_shap_wide, 
+       method = c("everything", "spearman"), 
+       limits = c(-1, 1), 
+       label = T, 
+       label_round = 2, 
+       angle = 0, 
+       hjust = 0.75, 
+       low = "#bd0f06",
+       mid = "gray90",
+       high = "#2200c9")
+dev.off()
+
+
+#### 8. Estimate area of threatened natural range ----
+
+### ESTIMATE SHAPLEY AREAS BASED ON CATCHMENTS 
+## get the catchment level shapley values
+# read in the RDS
+sp_shap <- readRDS(shap_pa)
+
+# join shapley values to the teilenzugsgebeit
+sp_shap <- left_join(
+  subcatchments_final %>%
+    select(TEILEZGNR),
+  sp_shap
+) %>%
+  filter(!is.na(suitability))
+
+sp_shap$natural_niche <- (sp_shap$ecoF_discharge_max_log10_SHAP>0) + (sp_shap$stars_t_mn_m_c_SHAP>0) + (sp_shap$ecoF_flow_velocity_mean_SHAP>0) == 3
+sp_shap$natural_niche_value <- (sp_shap$ecoF_discharge_max_log10_SHAP + sp_shap$stars_t_mn_m_c_SHAP + sp_shap$ecoF_flow_velocity_mean_SHAP) / 3
+
+round(table(sp_shap$natural_niche) / nrow(sp_shap), 2)
+round(table(sp_shap$ecoF_discharge_max_log10_SHAP>0) / nrow(sp_shap), 2)
+round(table(sp_shap$stars_t_mn_m_c_SHAP>0) / nrow(sp_shap), 2)
+round(table(sp_shap$ecoF_flow_velocity_mean_SHAP>0) / nrow(sp_shap), 2)
+
+## find the sites that fit our 5 categories of outside, inside, inside + negative con, inside + negative habitat, inside + negative both
+
+sp_shap$neg_con <- sp_shap$local_asym_cl_log10_SHAP < 0
+sp_shap$neg_habitat <- ((sp_shap$local_flood_SHAP + 
+  sp_shap$local_imd_log10_ele_residual_SHAP + 
+  sp_shap$ecoF_eco_mean_ele_residual_SHAP) /3) < 0
+
+sp_shap$niche_categories <- as.factor(ifelse(sp_shap$natural_niche == T & sp_shap$neg_con == F & sp_shap$neg_habitat == F, '2. inside ecological niche',
+                                      ifelse(sp_shap$natural_niche == T & sp_shap$neg_con == T & sp_shap$neg_habitat == F, '3. poor connectivity', 
+                                             ifelse(sp_shap$natural_niche == T & sp_shap$neg_con == F & sp_shap$neg_habitat == T, '4. poor habitat', 
+                                                    ifelse(sp_shap$natural_niche == T & sp_shap$neg_con == T & sp_shap$neg_habitat == T, '5. poor connectivity and habitat', 
+                                                           ifelse(sp_shap$natural_niche == F, '1. outside ecological niche', NA))))))
+
+# create plot of shapley values against suitability classified by threat
+pdf(paste0(fig_dir, '/spatial_shap_example/natural_threat_suitability_biplot.pdf'), 
+    width = 3, height = 3, bg = 'transparent')
+ggplot() + 
+  geom_point(data = sp_shap %>% arrange(niche_categories), 
+             aes(y = suitability, 
+                 x = natural_niche_value, 
+                 col = niche_categories, 
+                 size = niche_categories)) + 
+  xlab(expression('abiotic niche' ~phi~ 'values')) + 
+  ylab('predicted relative occurrence') + 
+  scale_colour_manual('', values = c('#E8E8E8','#06C4C4','#D1D111', '#D16111', '#F70000')) + 
+  theme_bw() + 
+  theme(panel.grid = element_blank(),
+        legend.position = 'none', 
+        aspect.ratio = 1, 
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        plot.background = element_blank(),
+        axis.line = element_line()) + 
+  geom_vline(aes(xintercept = 0), lty = 2) + 
+  scale_size_manual(values = c(1,2,2,2,2))
+dev.off()
+  
+
+## what % of catchments inside the niche are negative connectivity (local_asym_cl_log10_SHAP)
+neg_con <- sp_shap %>% filter(natural_niche == T) %>% .$local_asym_cl_log10_SHAP %>%  .[] < 0
+round((table(neg_con) / length(neg_con))*100)
+
+## what % of catchments inside the niche are negative ecomorphology (ecoF_eco_mean_ele_residual_SHAP)
+neg_ecoF <- sp_shap %>% filter(natural_niche == T) %>% .$ecoF_eco_mean_ele_residual_SHAP  %>%  .[] < 0
+round((table(neg_ecoF) / length(neg_ecoF))*100)
+
+## what % of catchments inside the niche are negative ecomorphology (local_imd_log10_ele_residual_SHAP)
+neg_urban <- sp_shap %>% filter(natural_niche == T) %>% .$local_imd_log10_ele_residual_SHAP  %>%  .[] < 0
+round((table(neg_urban) / length(neg_urban))*100)
+
+## what % of catchments inside the niche are negative ecomorphology (local_flood_SHAP)
+neg_flood <- sp_shap %>% filter(natural_niche == T) %>% .$local_flood_SHAP  %>%  .[] < 0
+round((table(neg_flood) / length(neg_flood))*100)
+
+# estiate % of catchments jointly affected by habitat threats
+round((table((neg_ecoF + neg_urban + neg_flood) >= 1) / length(neg_ecoF))*100)
+round((table((neg_ecoF + neg_urban + neg_flood) >= 2) / length(neg_ecoF))*100)
+round((table((neg_ecoF + neg_urban + neg_flood) >= 3) / length(neg_ecoF))*100)
+
+round((table((((neg_ecoF + neg_urban + neg_flood) >= 1) + neg_con) == 2) / length(neg_ecoF))*100)
 
 
 
-#### 7. Estimate area of threatened natural range ----
+#### find areas where suitability estimates are higher than predicted occurrence threshold
+# get mean of raster layers
+rast_suit_pa <- mean(rast(sp_raster_suit_pa), na.rm = T)
+model_data   <- readRDS(paste0(sdm_dirs, '/data/sdm_input_data.rds'))@pa_data$full_data
+pred_occ <- terra::extract(rast_suit_pa, model_data[c('X', 'Y')])
+threshold <- ecospat::ecospat.max.tss(pred_occ$mean, model_data$occ)$max.threshold
 
+# define if the catchment is occupied based on mean model predictions
+sp_shap$present <- sp_shap$suitability >= threshold
+table(sp_shap$present)
+
+# get presence or absence inside niche
+niche_pa <- sp_shap %>% filter(natural_niche == T) %>% .$present
+round((table(niche_pa) / length(niche_pa))*100)
+
+#### 9. Plot areas that are inside the ecological niche but are threatened ----
+
+### PLOT SHAPLEY AREAS BASED ON RASTERS (MORE CONVININIENT PLOTTING)
 
 # find areas where shapley values for natural niche factors (discharge, flow velocity and temperature) 
 # are positive for Alburnoides bipunctatus
@@ -367,22 +497,22 @@ natural_index[natural_index < 0] <- 0
 
 # which areas are shapley vales negative for connectivity or floodplain area
 threatened <- sum(c(shap_rast_pa_i[[grep('connectivity', names(shap_rast_pa_i))]] < 0, 
-                    shap_rast_pa_i[[grep('floodplains', names(shap_rast_pa_i))]] < 0))
-
+                    app(shap_rast_pa_i[[grep('floodplains|ecomorphology|urban', names(shap_rast_pa_i))]], mean) < 0))
+ 
 # find areas where shapley values are negative for 'threats' but shapley values are positive for natural niche factors
 neg_con <- shap_rast_pa_i[[grep('connectivity', names(shap_rast_pa_i))]] < 0 & natural == 3
-neg_flood <- shap_rast_pa_i[[grep('floodplains', names(shap_rast_pa_i))]] < 0 & natural == 3
+neg_habitat<- app(shap_rast_pa_i[[grep('floodplains|ecomorphology|urban', names(shap_rast_pa_i))]], mean) < 0 & natural == 3
 plot(threatened != 0 & natural == 3)
 plot(threatened == 0 & natural == 3)
 plot(neg_con)
-plot(neg_flood)
+plot(neg_habitat)
 
 # assign categories of range constraints based on values of the above rasters
 natural_threat_rast <- shap_rast_pa_i[[1]]
-values(natural_threat_rast) <- ifelse(natural[] == 3 & neg_con[] == F & neg_flood[] == F, '2. inside ecological niche',
-                                      ifelse(natural[] == 3 & neg_con[] == T & neg_flood[] == F, '3. poor connectivity', 
-                                             ifelse(natural[] == 3 & neg_con[] == F & neg_flood[] == T, '4. poor habitat', 
-                                                    ifelse(natural[] == 3 & neg_con[] == T & neg_flood[] == T, '5. poor connectivity and habitat', 
+values(natural_threat_rast) <- ifelse(natural[] == 3 & neg_con[] == F & neg_habitat[] == F, '2. inside ecological niche',
+                                      ifelse(natural[] == 3 & neg_con[] == T & neg_habitat[] == F, '3. poor connectivity', 
+                                             ifelse(natural[] == 3 & neg_con[] == F & neg_habitat[] == T, '4. poor habitat', 
+                                                    ifelse(natural[] == 3 & neg_con[] == T & neg_habitat[] == T, '5. poor connectivity and habitat', 
                                                            ifelse(natural[] != 3, '1. outside ecological niche', NA)))))
 names(natural_threat_rast) <- 'threat map'
 
@@ -391,7 +521,7 @@ names(natural_threat_rast) <- 'threat map'
 ## 3 - natural areas with connectivity negative
 ## 4 - natural areas with flood negative
 ## 5 - natural areas with both connectivity and floodplains negative
-threat_niche <- tm_shape(natural_threat_rast) +
+threat_niche <- tm_shape(natural_threat_rast, raster.downsample = F) +
   tm_raster(style = 'fixed',
             breaks = 1:4,
             palette = c('#E8E8E8','#06C4C4','#D1D111', '#D16111', '#F70000'), 
@@ -400,7 +530,7 @@ threat_niche <- tm_shape(natural_threat_rast) +
   tm_lines(legend.show = F, col = 'black') + 
   tm_shape(lakes) +
   tm_polygons(border.col = "black", col = "white", legend.show = F) + 
-  tm_layout(frame = T,
+  tm_layout(frame = F,
             bg.color = "transparent")
 
 
@@ -419,7 +549,7 @@ natural_area <- terra::as.polygons(all_natural) %>% st_as_sf() %>% st_area %>% .
 # percentage of natural area that is under different threat classes
 natural_threat_sf$area_natural <- round(natural_threat_sf$area / natural_area, 2)
 
-#### 8. Look at natural factor constrains inside and outside of species predicted areas ----
+#### 10. Look at natural factor constrains inside and outside of species predicted areas ----
 
 # mainly discharge = discharge is highest positive
 # mainly flow velocity = flow velocity is highest negative
@@ -466,7 +596,7 @@ natural_niche_pos <- tm_shape(which_pos) +
   tm_lines(legend.show = F, col = 'black', lwd = 0.5) + 
   tm_shape(lakes) +
   tm_polygons(border.col = "black", col = "white", legend.show = F, lwd = 0.5) + 
-  tm_layout(frame = T,
+  tm_layout(frame = F,
             bg.color = "transparent")
 
 # plot negative niche effects
@@ -478,7 +608,7 @@ natural_niche_neg <- tm_shape(which_neg) +
   tm_lines(legend.show = F, col = 'black', lwd = 0.5) + 
   tm_shape(lakes) +
   tm_polygons(border.col = "black", col = "white", legend.show = F, lwd = 0.5) + 
-  tm_layout(frame = T,
+  tm_layout(frame = F,
             bg.color = "transparent")
 
 # combine into joint plot for manuscript figure

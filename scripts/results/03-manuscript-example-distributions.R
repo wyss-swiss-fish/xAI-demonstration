@@ -183,6 +183,8 @@ pa_map <- c(pres_suit, abs_suit)
 pa_map <- trim(pa_map)
 
 occ_plot <- 
+  tm_shape(ch) + 
+  tm_borders(col = 'black') + 
   tm_shape(suit_i) + 
   tm_raster(style = 'cont', 
             legend.is.portrait = F, 
@@ -200,7 +202,12 @@ occ_plot <-
             panel.label.bg.color = 'white', 
             frame = FALSE, 
             bg.color = "transparent") + 
-  tm_facets(ncol = 1)
+  tm_shape(ch) + 
+  tm_borders(col = 'black') + 
+  tm_facets(ncol = 1) +
+  tm_scale_bar(width  = 0.25, 
+               text.size = 0.5, 
+               position = c('center', 'bottom'))
   
   
 
@@ -234,7 +241,7 @@ shap_plot <- tm_shape(shap_rast_plot) +
 
 
 dir.create(paste0(fig_dir, '/spatial_shap_example/'), recursive = T)
-pdf(paste0(fig_dir, '/spatial_shap_example/presence_', sp_list[1], '.pdf'), width = 6, height = 2, 
+pdf(paste0(fig_dir, '/spatial_shap_example/presence_', sp_list[1], '.pdf'), width = 6*1.5, height = 2*1.5, 
     bg = 'transparent')
 print(occ_plot) 
 dev.off()

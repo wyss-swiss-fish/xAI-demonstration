@@ -212,8 +212,57 @@ dev.off()
 
 
 
+#### Make simple map of europe ----
 
+install.packages('eurostat')
+library(eurostat)
 
+SHP_0 <- get_eurostat_geospatial(resolution = 10, 
+                                 nuts_level = 0, 
+                                 year = 2016)
 
+st_bbox(st_transform(subcatchments_rhine_v2, crs = 'wgs84'))
 
+adj = 10
+plot(SHP_0[,1] %>% 
+       st_crop(., y=st_bbox(c(xmin = 6.055688-10 , ymin = 46.325695-10 , xmax = 10.144610+10, ymax = 47.859521+10), crs = 'wgs84')))
+
+bbox <- st_as_sfc(st_bbox(c(xmin = 6.055688-10 , ymin = 46.325695-10 , xmax = 10.144610+10, ymax = 47.859521+10), crs = 'wgs84'))
+
+st_europe <- SHP_0[,1] %>% 
+  st_intersects(., y=bbox)
+
+keep <- rbind(SHP_0[as.numeric(st_europe)==1,], 
+              SHP_0 %>% filter(NAME_LATN == 'PORTUGAL'))
+
+# get boundaries of western europe
+western_eu <- st_union(st_crop(keep, st_bbox(c(xmin = 6.055688-20 , ymin = 46.325695-10 , xmax = 10.144610+20, ymax = 47.859521+10), crs = 'wgs84')))
+
+# get the swiss borders
+ch <- SHP_0 %>% filter(CNTR_CODE == 'CH')
+
+# get subcatchments of the rhine
+rhine_borders_ch <- st_union(subcatchments_rhine)
+
+# read in shapefile for european rivers and subset to the rhine
+eu_rivers <- st_read(paste0(dd, 'eu-hydro/eu-hydro-combined.shp'))
+names(eu_rivers)
+rhine <- eu_rivers %>% filter(bg_ctch=='rhine')
+rhine_main <- rhine %>% filter(CUM_LEN > 10000)
+rhine_in_ch <- st_intersection(rhine, rhine_borders_ch)
+
+pdf(paste0(fig_dir, 'map_rivers.pdf'))
+tm_shape(western_eu) + 
+  tm_borders(col = 'black') + 
+  tm_shape(ch) +
+  tm_polygons(col = 'gray75', border.col = 'transparent') + 
+  tm_shape(rhine_main) + 
+  tm_lines(col = 'black', 
+           lwd = 0.1) + 
+  tm_shape(rhine_in_ch) +
+  tm_lines(col = 'red', 
+           lwd = 0.1) +
+  tm_layout(frame = F, 
+            bg.color = "transparent") 
+dev.off()
 

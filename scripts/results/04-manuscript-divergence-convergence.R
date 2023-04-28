@@ -158,7 +158,63 @@ ggplot(data = all_shap_env %>%
 dev.off()
 
 
-#### Example 1. Contrast response curves: coupled but divergent -----
+
+#### 4. Overall convergence, divergence, coupling and decoupling ----
+
+# calculate correlation between variables
+all_cors <- all_shap_env %>% 
+  group_by(species_name, vars_renamed) %>% 
+  do(cor = as.numeric(cor(x = .$shapley, y = .$env, method = 'pearson'))) %>% 
+  unnest()
+  
+# make wider and fill with 0s
+all_cors <- pivot_longer(pivot_wider(all_cors, 
+                                     names_from = 'vars_renamed', values_from = cor, values_fill = 0), 
+                         cols = -species_name, 
+                         names_to = 'vars_renamed', values_to = 'cor')
+
+# get levels
+relevel_shap <- all_shap_env %>% 
+  group_by(vars_renamed) %>% 
+  do(mean_shap = mean(abs(.$shapley))) %>% 
+  unnest() %>% 
+  arrange(mean_shap)
+
+# relevel factors
+all_cors$vars_renamed <- factor(all_cors$vars_renamed, levels = relevel_shap$vars_renamed)
+
+
+
+
+#install.packages("seecolor")
+library(seecolor)
+pal <- c('#B436FF', '#E83197', '#FF6242', '#E88C31', '#FFCC35', 
+         '#E2EB9E', '#65EBA5', '#4DE3FF', '#6772FF' )
+print_color(pal)
+
+pdf(paste0(contrast_dir, 'correlation_env_shap.pdf'), height = 6, width = 8)
+ggplot(data = all_cors) + 
+  geom_violin(data = all_cors %>% filter(cor != 0), aes(x = cor, y = vars_renamed), 
+              scale = 'width', fill = 'gray75') + 
+  geom_point(aes(x = cor, y = vars_renamed, fill = species_name),
+             pch = 21, size=4, position = position_jitter(width = 0, height = 0.2)) + 
+  geom_vline(aes(xintercept = 0)) +
+  theme_bw() + 
+  theme(panel.background = element_blank(), 
+        panel.grid = element_blank(), 
+        axis.text.y = element_text(size = 13), 
+        axis.text.x = element_text(size = 13), 
+        axis.title = element_text(size = 13)) +
+  xlab(expression('Correlation between environment and'~phi)) +
+  ylab(NULL) + 
+  scale_fill_manual(' ', values = pal) + 
+  guides(fill = guide_legend(override.aes = list(size=5)))
+dev.off()
+
+
+  
+
+#### 5. Example 1. Contrast response curves: coupled but divergent -----
 
 # contrast species
 CouDiv1 <- 'Oncorhynchus mykiss'
@@ -395,7 +451,7 @@ tm_shape(env_data[CouDiv_var]) +
             frame = F)
 dev.off()
 
-#### Example 2. Contrast response curves for connnectivity across species ----
+#### 6. Example 2. Contrast response curves for connnectivity across species ----
 
 # contrast species
 CouCon1 <- 'Lampetra planeri'
@@ -603,7 +659,7 @@ dev.off()
 
 
 
-#### Example 3. Contrast response curves for decoupled effects ----
+#### 7. Example 3. Contrast response curves for decoupled effects ----
 
 
 # contrast species
@@ -815,17 +871,35 @@ dev.off()
 
 
 
-#### Catchment force plots ----
-
+#### 8. Catchment force plots ----
 
 # get the teilenzugsgebeit for the sense
-sense <- data.frame(catchment = 'Sense', TEZGNR40 = c(100184, 101484, 105044, 105663, 102204, 102377))
-emme <- data.frame(catchment = 'Emme', TEZGNR40 = c(106570, 106299, 101728, 101280, 106548, 103982, 108894))
+sense <- data.frame(catchment = 'Sense', 
+                    TEZGNR40 = c(100184, 101484, 105044, 105663, 102204, 102377))
+emme <- data.frame(catchment = 'Emme', 
+                   TEZGNR40 = c(106570, 106299, 101728, 101280, 106548, 103982))
 catchments <- rbind(sense, emme)
+
+# testing taking the 2km2 subcatchments containig the main stems
+sense <- data.frame(catchment = 'Sense', 
+                    TEILEZGNR = c(54206, 49238, 36039, 53576, 92800, 
+                                  73564, 79104, 55745, 61040, 21140, 
+                                  76158, 40046, 95372, 78251, 21268, 
+                                  96970, 1492, 64847, 85482, 21499, 
+                                  5407, 72778, 98155, 18709, 9298))
+emme <- data.frame(catchment = 'Emme', 
+                    TEILEZGNR = c(48935, 519, 76613, 38042, 23267,64482, 
+                                  17698, 39457, 59083, 8682, 42744, 
+                                  14206, 88728, 80592, 44084, 92441,
+                                  62780, 47744, 19469, 80840, 66777, 
+                                  54624, 54833, 26718, 81132, 31679, 
+                                  4435, 94151))
+catchments <- rbind(sense, emme)
+
 
 # read in subcatchments, transform, union
 subcatchments_sense_union <- st_read(subcatchment_file, layer = "Teileinzugsgebiet") %>%
-  filter(TEZGNR40 %in% catchments$TEZGNR40) %>%
+  filter(TEILEZGNR %in% catchments$TEILEZGNR) %>%
   # convert to target crs
   st_transform(., crs = target_crs) %>%
   # union together
@@ -833,13 +907,21 @@ subcatchments_sense_union <- st_read(subcatchment_file, layer = "Teileinzugsgebi
   # remove z and m properties that can cause errors later
   st_zm()
 
-mapview::mapview(subcatchments_sense_union)
+# get non-unioned objects to explore plots
+subcatchments_sense_nounion <- st_read(subcatchment_file, layer = "Teileinzugsgebiet") %>%
+  filter(TEILEZGNR %in% catchments$TEILEZGNR) %>%
+  # convert to target crs
+  st_transform(., crs = target_crs) %>% 
+  st_zm()
+mapview::mapview(subcatchments_sense_nounion, zcol = 'TEILEZGNR')
 
-subcatchment_2km_names <- st_read(subcatchment_file, layer = "Teileinzugsgebiet") %>%
-  filter(TEZGNR40 %in% catchments$TEZGNR40) %>%
-  st_drop_geometry() %>% 
-  select(TEILEZGNR, TEZGNR40)
-subcatchment_2km_names
+# get the areas of the focal regions
+st_read(subcatchment_file, layer = "Teileinzugsgebiet") %>%
+  filter(TEILEZGNR %in% catchments$TEILEZGNR) %>% 
+  left_join(., catchments) %>% 
+  group_by(catchment) %>% 
+  do(area = sum(st_area(.))) %>%  
+  unnest()
 
 # join with focal catchments
 subcatchment_2km_names <- left_join(subcatchment_2km_names, catchments)
@@ -994,7 +1076,21 @@ shapley_catchment_summary <- shapley_catchment_summary %>% filter(vars_renamed !
 # check directions of effects
 pos <- '#528F70'
 neg <- '#FF8000'
-direction <- rev(c(neg, pos, neg, neg, pos, pos, neg, pos, neg, pos))
+direction <- rev(c(pos, pos, neg, neg, neg, neg, pos, neg, pos, pos))
+
+# Set up colours for direction plot
+shapley_catchment_summary <- shapley_catchment_summary %>% 
+  mutate(bar_cols = case_when(
+    sign_shap == 1  & present_in_emme == 0 & catchment == 'Emme' ~ '#9287cc', 
+    sign_shap == -1 & present_in_emme == 0 & catchment == 'Emme' ~ '#e89e99', 
+    sign_shap == 1  & present_in_emme == 1 & catchment == 'Emme' ~ '#2200c9', 
+    sign_shap == -1 & present_in_emme == 1 & catchment == 'Emme' ~ '#bd0f06', 
+    sign_shap == 1  & present_in_sense == 0 & catchment == 'Sense' ~ '#9287cc', 
+    sign_shap == -1 & present_in_sense == 0 & catchment == 'Sense' ~ '#e89e99', 
+    sign_shap == 1  & present_in_sense == 1 & catchment == 'Sense' ~ '#2200c9', 
+    sign_shap == -1 & present_in_sense == 1 & catchment == 'Sense' ~ '#bd0f06'))
+
+
 
 # make force plots contrasting mean responses across emme and sense
 pdf(paste0(force_dir, '/emme_sense_force.pdf'), width = 10, height = 5)
@@ -1023,16 +1119,16 @@ ggplot(data = shapley_catchment_summary) +
                aes(xend = mean_shap + baseline_prediction, 
                    x = baseline_prediction, 
                    y = vars_renamed, yend = vars_renamed, 
-                   col = mean_shap, lwd = abs(mean_shap), 
-                   alpha = as.factor(present_in_emme)),
+                   col = bar_cols, 
+                   lwd = abs(mean_shap)),
                lineend = 'butt', linejoin = 'mitre') + 
   geom_segment(data = shapley_catchment_summary %>% 
                  filter(catchment == 'Sense'), 
                aes(xend = mean_shap + baseline_prediction, 
                    x = baseline_prediction, 
                    y = vars_renamed, yend = vars_renamed, 
-                   col = mean_shap, lwd = abs(mean_shap), 
-                   alpha = as.factor(present_in_sense)),
+                   col = bar_cols, 
+                   lwd = abs(mean_shap)),
                lineend = 'butt', linejoin = 'mitre') + 
   
   # draw vertical lines
@@ -1048,38 +1144,26 @@ ggplot(data = shapley_catchment_summary) +
                filter(catchment == 'Emme'), 
              aes(x = mean_shap + baseline_prediction, 
                  y = vars_renamed, 
-                 col = mean_shap, 
-                 size = abs(mean_shap)*2, 
-                 pch = as.factor(present_in_emme)),
-             fill = 'white') + 
+                 col = bar_cols, 
+                 size = abs(mean_shap)*2)) + 
   geom_point(data = shapley_catchment_summary %>% 
                filter(catchment == 'Sense'), 
              aes(x = mean_shap + baseline_prediction, 
                  y = vars_renamed, 
-                 col = mean_shap, 
-                 size = abs(mean_shap)*2, 
-                 pch = as.factor(present_in_sense)),
-             fill = 'white') + 
+                 col = bar_cols, 
+                 size = abs(mean_shap)*2)) + 
   
   
   # scales
-  scale_colour_gradientn(
-                           colors=c('#bd0f06','gray50', '#2200c9'),
-                           values=scales::rescale(c(-0.2, -0.01, 0, 0.01 , 0.2)),
-                           limits=c(-max(abs(range(shapley_catchment_summary$mean_shap, na.rm = T))), 
-                                    max(abs(range(shapley_catchment_summary$mean_shap, na.rm = T))))) +
-  #scale_size_continuous(range = c(0.1, 3)) + 
-  scale_shape_manual(values = c(21,19)) + 
-  scale_alpha_manual(values = c(0.2, 1)) + 
+  scale_colour_manual(values = na.omit(unique(shapley_catchment_summary$bar_cols))[c(3,1,4,2)]) + 
   xlab('Change in local prediction from average prediction') + 
   ylab(NULL) +
   coord_cartesian(clip = "off")
 dev.off()
 
+#e3b1af
 
-
-  
-#### Make catchment specific response curves ----
+#### 9. Make catchment specific response curves ----
 
 shap_focal_catch_rc <- shapley_focal %>%  
   left_join(all_env_subcatchments) %>% 
@@ -1135,5 +1219,94 @@ ggplot(data = shap_focal_catch_rc) +
   scale_colour_manual(values = c('#9FC131FF', '#FDD20EFF')) +
   scale_x_continuous(breaks = c(-3, -2, -1))
 
+#### 10. Plot environmental data for each catchment ----
 
+subcatchment_file <- 'C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/swiss-2km-subcatchments/EZG_Gewaesser.gdb'
+
+# read in subcatchments, transform, union
+emme_union <- st_read(subcatchment_file, layer = "Teileinzugsgebiet") %>%
+  filter(TEILEZGNR %in% emme$TEILEZGNR) %>%
+  # convert to target crs
+  st_transform(., crs = target_crs) %>%
+  # union together
+  st_union() %>%
+  # remove z and m properties that can cause errors later
+  st_zm() %>% 
+  st_as_sf() %>% 
+  mutate(name = 'Emme')
+
+sense_union <- st_read(subcatchment_file, layer = "Teileinzugsgebiet") %>%
+  filter(TEILEZGNR %in% sense$TEILEZGNR) %>%
+  # convert to target crs
+  st_transform(., crs = target_crs) %>%
+  # union together
+  st_union() %>%
+  # remove z and m properties that can cause errors later
+  st_zm() %>% 
+  st_as_sf() %>% 
+  mutate(name = 'Sense')
+
+# set vector of focal variables for assigning new names, this must be consistent with the models fitted
+vars <- c('ecoF_discharge_max_log10', 
+          'ecoF_slope_min_log10', 
+          'ecoF_flow_velocity_mean', 
+          'stars_t_mx_m_c', 
+          'stars_t_mn_m_c',
+          'local_asym_cl_log10',
+          'local_dis2lake',
+          'ecoF_eco_mean_ele_residual', 
+          'local_imd_log10_ele_residual',
+          'local_wet',
+          'local_flood')
+
+vars_renamed = c('discharge', 
+                 'slope', 
+                 'flow velocity', 
+                 'temperature max', 
+                 'temperature min', 
+                 'connectivity', 
+                 'distance to lake', 
+                 'ecomorphology', 
+                 'urbanisation',
+                 'wetland', 
+                 'floodplains')
+
+# reset environmental names
+vars_renamed_V2 <- cbind(vars, vars_renamed)
+
+emme_env <- extract(env_data, vect(emme_union)) %>% 
+  select(all_of(vars)) %>% 
+  pivot_longer(colnames(.)) %>% 
+  mutate(catchment = 'Emme')
+
+sense_env <- extract(env_data, vect(sense_union)) %>% 
+  select(all_of(vars)) %>% 
+  pivot_longer(colnames(.)) %>% 
+  mutate(catchment = 'Sense')
+
+catchment_envs <- rbind(emme_env, sense_env)
+
+# organise variable names
+catchment_envs <- left_join(catchment_envs, data.frame(vars_renamed_V2), by = c('name' = 'vars'))
+
+# take sample of all 
+env_df <- data.frame(env_data) %>% na.omit 
+
+sample_env_data <-  env_df %>% 
+  filter(elevation < 900) %>% 
+  sample_n(., 10000) %>% 
+  pivot_longer(colnames(.)) %>% 
+  mutate(catchment = 'all')
+sample_env_data <- left_join(sample_env_data, data.frame(vars_renamed_V2), by = c('name' = 'vars'))
+sample_env_data <- na.omit(sample_env_data)
+
+pdf(paste0(force_dir, '/emme_sense_env.pdf'), width = 9)
+ggplot(data = catchment_envs) + 
+  geom_boxplot(aes(x = catchment, y = value, col = catchment)) + 
+  geom_boxplot(data = sample_env_data,
+               aes(x = catchment, y = value, col = catchment)) + 
+  facet_wrap(~vars_renamed, scale = 'free') + 
+  theme_bw() + 
+  theme(panel.grid = element_blank())
+dev.off()
 

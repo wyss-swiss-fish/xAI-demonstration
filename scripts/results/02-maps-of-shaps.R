@@ -48,6 +48,10 @@ rc_pa <- paste0(sdm_dirs, "/output/response_curves/response_curves_rf_pa.rds")
 sp_raster_pres_po <- paste0(sdm_dirs, "/output/raster_maps/presence_MCC_stack_po_rf.TIF")
 sp_raster_pres_pa <- paste0(sdm_dirs, "/output/raster_maps/presence_stack_pa_rf.TIF")
 
+# suitability map
+sp_raster_suit_pa <- paste0(sdm_dirs, "/output/raster_maps/suitability_stack_pa_rf.TIF")
+
+
 # read in environmental data
 env_data <- rast(paste0(dd_env, '/ch-rasters/final-raster-set/all_env_data_RHEIN_RESIDUALS.tif'))
 
@@ -163,7 +167,7 @@ for (i in 1:length(sp_list)) {
   }
 }
 
-#### 5. Create single pdf of all shapely across each species ----
+#### 5. Create single pdf spatial maps of shapely values across each species ----
 
 pdf(paste0(fig_dir, "shap_maps_all_po", ".pdf"), width = 14, height = 10)
 for (i in 1:length(sp_list)){
@@ -184,17 +188,27 @@ for (i in 1:length(sp_list)){
       shap_all_plot_po <- tm_shape(shap_rast_po_i) +
                                       tm_raster(
                                         style = "cont",
-                                        palette = "RdBu",
-                                        title = sp_list[i],
-                                        legend.reverse = TRUE,
-                                        legend.is.portrait = T
+                                        palette = c('#bd0f06','gray90', '#2200c9'), 
+                                        midpoint = 0,
+                                        legend.reverse = F,
+                                        title = '',
+                                        legend.is.portrait = F, 
+                                        legend.show = F
                                       ) +
-                                      tm_shape(lakes) +
-                                      tm_polygons(border.col = "gray50", col = "gray95", legend.show = F, lwd = 0.01) + 
-                                      tm_layout(legend.outside = T, 
-                                                legend.position = c('left', 'top'), 
-                                                panel.labels=names(shap_rast_po_i)) + 
-                                      tm_facets(ncol = 3)
+        tm_facets(ncol = 4, 
+                  free.scales.raster = T) +                                   
+        tm_shape(river_intersect_lakes) + 
+        tm_lines(legend.show = F, col = 'gray75') + 
+        tm_shape(lakes) +
+        tm_polygons(border.col = "gray75", col = "white", legend.show = F, lwd = 0.01) + 
+        tm_layout(legend.outside = F, 
+                  legend.outside.size = 0.1,
+                  legend.outside.position = c('bottom'), 
+                  panel.labels=names(shap_rast_plot), 
+                  panel.label.bg.color = 'white', 
+                  frame = FALSE,
+                  bg.color = "transparent", 
+                  panel.label.size = 1.2)
       
     }else{shap_all_plot_po <- NULL}
     
@@ -203,7 +217,7 @@ for (i in 1:length(sp_list)){
 }
 dev.off() 
    
-pdf(paste0(fig_dir, "shap_maps_all_pa", ".pdf"), width = 14, height = 10)
+pdf(paste0(fig_dir, "shap_maps_all_pa", ".pdf"), width = 24*0.75, height = 10*0.75)
 for(i in 1:length(sp_list)){
   
   do_pa <- file.exists(paste0(shap_dirs[i], "/shap_raster_pa.TIF"))
@@ -224,19 +238,27 @@ for(i in 1:length(sp_list)){
       
       # plot overall 
       shap_all_plot_pa <- tm_shape(shap_rast_pa_i) +
-                                      tm_raster(
-                                        style = "cont",
-                                        palette = "RdBu",
-                                        legend.reverse = TRUE,
-                                        title = sp_list[i],
-                                        legend.is.portrait = T
-                                      ) +
-                                      tm_shape(lakes) +
-                                      tm_polygons(border.col = "gray50", col = "gray95", legend.show = F, lwd = 0.01) + 
-                                      tm_layout(legend.outside = T, 
-                                                legend.position = c('left', 'top'), 
-                                                panel.labels=names(shap_rast_pa_i)) + 
-                                      tm_facets(ncol = 3)
+        tm_raster(
+          style = "cont",
+          palette = c('#bd0f06','gray90', '#2200c9'), 
+          midpoint = 0,
+          legend.reverse = F,
+          legend.is.portrait = F, 
+          legend.show = T,
+          title = 'Shapley'
+        ) +
+        tm_layout(title = sp_list[i]) + 
+        tm_facets(ncol = 4) +  
+        tm_shape(river_intersect_lakes) + 
+        tm_lines(legend.show = F, col = 'gray75') + 
+        tm_shape(lakes) +
+        tm_polygons(border.col = "gray75", col = "white", legend.show = F, lwd = 0.01) + 
+        tm_layout(panel.labels=names(shap_rast_pa_i), 
+                  panel.label.bg.color = 'white', 
+                  frame = FALSE,
+                  bg.color = "transparent", 
+                  panel.label.size = 1.2, 
+                  legend.outside.position = 'bottom')
       
       
     }else{shap_all_plot_pa <- NULL}
@@ -356,9 +378,10 @@ for (i in 1:length(sp_list)) {
 }
 dev.off()
 
-#### END OF SCRIPT 14.04.2023 -----
 
-#### 9. Make plot comparing all species shapley values together ----
+
+
+#### 7. Make plot comparing all species shapley values together ----
 
 all_shap_env <- lapply(1:length(sp_list), function(x){ 
   
@@ -404,58 +427,87 @@ all_shap_env_pa_simple <- all_shap_env_pa %>%
      range_var_imp = sd(.$shapley), na.rm = T) %>% 
   unnest(c(mean_var_imp, range_var_imp))
 
-focal_variables <- c('connectivity', 
-                     'cropland', 
-                     'floodplains', 
-                     'temperature',
-                     'urbanisation', 
-                     'insecticide', 
-                     'livestock')
+focal_variables <- vars_renamed[,'vars_renamed']
 
-focal_species <- c('Thymallus thymallus',
-                   'Telestes souffia', 
-                   'Barbus barbus', 
-                   'Lampetra planeri', 
-                   'Alburnoides bipunctatus', 
-                   'Squalius cephalus', 
-                   'Scardinius erythropthalmus', 
-                   'Anguilla anguilla', 
-                   'Esox lucius')
+focal_species <- sp_list
 
-pdf(paste0(fig_dir_allsp, "shap_select_varimp", ".pdf"), width = 7, height = 7)
+# plot variable importance matrix with species X variable
+pdf(paste0(fig_dir, "all_sp_varimp", ".pdf"), width = 7, height = 7)
 ggplot(data = all_shap_env_pa_simple %>% 
          filter(vars_renamed %in% focal_variables, 
                 species_name %in% focal_species) %>% 
          mutate(species_name = factor(species_name, levels = rev(sort(unique(species_name)))))) +
-  geom_raster(aes(x = vars_renamed, y = species_name, fill = sqrt(mean_var_imp))) +
+  geom_raster(aes(x = vars_renamed, y = species_name, fill = mean_var_imp)) +
   scale_fill_viridis_c(name = 'variable importance') + 
   theme_bw() + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1), 
-        legend.position = 'bottom') + 
+        legend.position = 'bottom', 
+        panel.grid = element_blank()) + 
   xlab(NULL) + 
   ylab(NULL) 
 dev.off()
 
-pdf(paste0(fig_dir_allsp, "shap_select_rc", ".pdf"), width = 13, height = 13)
+# plot the response curves as a large matrix across all species
+pdf(paste0(fig_dir, "allsp_rc", ".pdf"), width = 13, height = 13)
 ggplot(data = all_shap_env_pa %>% 
          filter(vars_renamed %in% focal_variables, 
                 species_name %in% focal_species) %>% 
          left_join(., all_shap_env_pa_simple) %>% 
          group_by(vars_renamed, species_name) %>% 
          sample_n(5000)) +
-  geom_point(aes(x = env, y = shapley, col = sqrt(mean_var_imp))) +
-  #geom_ma(aes(x = env, y = shapley), col = 'black') + 
+  geom_point(aes(x = env, y = shapley, col = mean_var_imp)) +
+  stat_smooth(aes(x = env, y = shapley), col = 'black', se = F) +
   facet_grid(species_name ~ vars_renamed, scales = 'free_x') +
   geom_hline(aes(yintercept = 0)) +
   theme_bw() +
   theme(panel.grid = element_blank(),
         aspect.ratio = 1, 
         legend.position = 'bottom') +
-  scale_y_continuous(limits = c(min_y, max_y)) +
   scale_colour_viridis_c(name = 'variable importance') + 
   xlab('environmental variable') + 
-  ylab('effect on habitat suitability \n (shapley value)')
+  ylab('Shapley value')
 dev.off()
+
+
+#### 8. Make plots of species habitat suitability ---- 
+
+# species raster distributions
+sp_rast <- rast(lapply(sp_raster_suit_pa, function(x) rast(x)))
+names(sp_rast) <- sp_list
+
+# define species thresholds based on TSS
+threshold_poly <-lapply(sp_list, function(x){
+  model_data   <- readRDS(paste0(sdm_dirs[grep(x,sdm_dirs)], '/data/sdm_input_data.rds'))@pa_data$full_data
+  pred_occ <- terra::extract(sp_rast[x], model_data[c('X', 'Y')])
+  threshold <- ecospat::ecospat.max.tss(pred_occ[[x]], model_data$occ)$max.threshold
+  new_rast <- sp_rast[x]
+  new_rast[new_rast<threshold] <- NA
+  new_rast[new_rast>threshold] <- 1
+  return(new_rast)})
+threshold_poly <- rast(threshold_poly)
+
+# define if the catchment is occupied based on mean model predictions
+sp_shap$present <- sp_shap$suitability >= threshold
+table(sp_shap$present)
+
+pdf(paste0(fig_dir, 'allsp_suitability.pdf'), width = 12, height = 8)
+tm_shape(sp_rast) + 
+  tm_raster(style = 'cont', 
+            title = 'suitability') + 
+  tm_facets(ncol = 3) + 
+  tm_shape(threshold_poly) + 
+  tm_raster(title = 'predicted present', 
+            palette = 'red')
+dev.off()
+
+threshold_rast <- rast(threshold_poly)
+plot(as.polygons(threshold_rast))
+
+tm_shape(st_as_sf(threshold_rast)) + 
+  tm_borders(col = 'black')
+
+
+#### END OF SCRIPT 27.04.2023 -----
 
 
 #### 10. Extract certain regions and see focal species responses ----

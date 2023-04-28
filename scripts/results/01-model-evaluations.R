@@ -28,7 +28,7 @@ sp_list <- unique(records_table$species_name)
 # directories holding evaluation data 
 eval_dir <- paste0(sdm_dirs, "/output/sdm_evaluations_rf.csv")
 
-#### 1. Join together all evaluation data ----
+#### 2. Join together all evaluation data ----
 
 # read in the evaluation data from the sdm directories
 sp_eval <- bind_rows(lapply(eval_dir, function(x) if(file.exists(x)){read.csv(x)}))
@@ -43,7 +43,7 @@ sp_eval_sub <- sp_eval %>%
   # remove binary prediction method and focus on TSS and MCC binary predictions
   filter(threshold_method != 'binary_pred')
 
-#### 2. Average model outputs over MCC thresholds and create table ----
+#### 3. Average model outputs over MCC thresholds and create table ----
 # MCC:
 # optimized for mcc based on mean values
 sp_eval_mcc <- sp_eval_sub %>% 
@@ -80,7 +80,7 @@ mcc_summary <- left_join(sp_eval_mcc, sp_eval_mcc_sd) %>%
 # save outputs for mcc based thresholds
 write.csv(mcc_summary, paste0(fig_dir, 'evaluations/evaluation_mcc.csv'))
  
-#### 3. Average model outputs over TSS thresholds and create table ----
+#### 4. Average model outputs over TSS thresholds and create table ----
 # TSS:
 # optimized for tss based on mean values
 sp_eval_tss <- sp_eval_sub %>% 
@@ -118,7 +118,7 @@ write.csv(tss_summary, paste0(fig_dir, 'evaluations/evaluation_tss.csv'))
 
 
 
-#### 3. Plot integrative performance metrics against one another (AUC, TSS, MCC) ----
+#### 5. Plot integrative performance metrics against one another (AUC, TSS, MCC) ----
 
 # number of records for use later
 pa_records <- records_table %>% select(species_name, pa)
@@ -243,7 +243,7 @@ cowplot::plot_grid(auc_tss, auc_mcc, mcc_tss, ncol = 1)
 dev.off()
 
 
-#### 4. Plot all model evaluation metrics for our focal species ----
+#### 6. Plot all model evaluation metrics for our focal species ----
 
 # subset our model evaluation data to focal integrative metrics and focal species
 final_plot_data <- sp_eval_sub %>% 
@@ -282,10 +282,31 @@ ggplot(data = final_plot_data) +
   xlab(NULL)
 dev.off()
 
-#### 5. Remake model evaluation tables based on focal species ----
+#### 7. Remake model evaluation tables based on focal species ----
 
 write.csv(mcc_summary %>% select(name, subset_sp), 
           paste0(fig_dir, 'evaluations/evaluation_mcc_subset.csv'))
 write.csv(tss_summary %>% select(name, subset_sp), 
           paste0(fig_dir, 'evaluations/evaluation_tss_subset.csv'))
 
+
+#### 8. Make table based on summarising input data to models ----
+
+sdm_data <- read_csv(paste0(dd, 'sdm-pipeline/species-records-final/fish-presenceAbsence_2010.csv'))
+
+summary_data <- sdm_data %>% 
+  filter(occ == 1, 
+         species_name %in% sp_list) %>% 
+  mutate(test = case_when(dataset == 'project_fiumi' ~ '2. EAWAG Projetto Fiumi', 
+                          dataset == 'wa_sampling' ~ '1. University of Bern 2022', 
+                          dataset == 'vonlanthen' ~ '4. Consultancies', 
+                             dataset == 'bafi_data' ~ '3. Kanton', 
+                             dataset == 'alte_aare_monitoring' ~ '3. Kanton', 
+                             dataset == 'lanat_3_unibe' ~ '1. University of Bern 2022')) %>% 
+  group_by(species_name, test) %>% 
+  count %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = test, values_from = n) %>% 
+  mutate(total = rowSums(across(where(is.numeric))))
+
+write.csv(summary_data, file = paste0(fig_dir, 'summary_occurrences.csv'))

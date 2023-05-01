@@ -25,6 +25,10 @@ dir.create(paste0(fig_dir, 'evaluations/'))
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
 sp_list <- unique(records_table$species_name)
 
+# get directories for response curve objects
+sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN), full.names = T)
+sdm_dirs <- sdm_dirs[grepl(paste0(sp_list, collapse = "|"), sdm_dirs)]
+
 # directories holding evaluation data 
 eval_dir <- paste0(sdm_dirs, "/output/sdm_evaluations_rf.csv")
 
@@ -293,7 +297,9 @@ write.csv(tss_summary %>% select(name, subset_sp),
 #### 8. Make table based on summarising input data to models ----
 
 sdm_data <- read_csv(paste0(dd, 'sdm-pipeline/species-records-final/fish-presenceAbsence_2010.csv'))
+sp_list <- readRDS('figures/ubelix_SDM_RF_MARCH_v6/evaluations/subset_sp.RDS')
 
+# summarise species level presences
 summary_data <- sdm_data %>% 
   filter(occ == 1, 
          species_name %in% sp_list) %>% 
@@ -310,3 +316,53 @@ summary_data <- sdm_data %>%
   mutate(total = rowSums(across(where(is.numeric))))
 
 write.csv(summary_data, file = paste0(fig_dir, 'summary_occurrences.csv'))
+
+# summarise total number of absences
+sdm_data %>% 
+  filter(occ == 0, 
+         species_name %in% sp_list) %>% 
+  select(X, Y) %>% 
+  n_distinct()
+
+
+sdm_data_clean_names <- sdm_data %>% 
+  mutate(dataset = case_when(dataset == 'project_fiumi' ~ '2. EAWAG Projetto Fiumi', 
+                          #dataset == 'wa_sampling' ~ '1. University of Bern 2022', 
+                          dataset == 'vonlanthen' ~ '4. Consultancies', 
+                          dataset == 'bafi_data' ~ '3. Kanton', 
+                          dataset == 'alte_aare_monitoring' ~ '3. Kanton', 
+                          dataset == 'lanat_3_unibe' ~ '1. University of Bern 2022'))
+
+# summarise year and structure of each monitoring data type
+pa_dataset_summaries <- left_join(
+  sdm_data_clean_names %>%
+    filter(!is.na(dataset), 
+           species_name %in% sp_list, 
+           occ == 1, 
+           (dataset != 'wa_sampling') %>% replace_na(TRUE)) %>%
+    group_by(dataset) %>%
+    do(
+      n_species = length(unique(.$species_name)),
+      n_locations = length(unique(paste0(.$X, .$Y))),
+      n_populations = length(unique(paste0(.$X, .$Y, .$species_name)))
+    ) %>%
+    unnest(),
+  
+  sdm_data_clean_names %>%
+    filter(!is.na(dataset), 
+           occ == 1, 
+           (dataset != 'wa_sampling') %>% replace_na(TRUE)) %>%
+    dplyr::select(X, Y, dataset, year) %>%
+    unique() %>%
+    group_by(dataset) %>%
+    do(
+      first_year_records = min(.$year, na.rm = T),
+      median_year_records = median(.$year, na.rm = T),
+      last_year_records = max(.$year, na.rm = T),
+      year_95_percent = round(quantile(.$year, 0.05, na.rm = T))
+    ) %>%
+    unnest()
+)
+
+write.csv(pa_dataset_summaries, file = paste0(fig_dir, 'summary_monitoring.csv'))
+

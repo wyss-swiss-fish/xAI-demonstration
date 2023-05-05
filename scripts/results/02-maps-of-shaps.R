@@ -175,6 +175,7 @@ for (i in 1:length(sp_list)){
     do_po <- file.exists(paste0(shap_dirs[i], "/shap_raster_po.TIF"))
     
     if(do_po){
+      
       # read in shapley raster
       shap_rast_po_i <- rast(paste0(shap_dirs[i], "/shap_raster_po.TIF"))
       
@@ -224,7 +225,7 @@ for(i in 1:length(sp_list)){
   
     if(do_pa){
       
-      # read in presence absence data
+      # read in shapley values data for a given species
       shap_rast_pa_i <- rast(paste0(shap_dirs[i], "/shap_raster_pa.TIF"))
       
       # clean names

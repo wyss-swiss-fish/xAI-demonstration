@@ -49,6 +49,8 @@ subcatchments_rhine <- st_read(subcatchment_file, layer = "Teileinzugsgebiet") %
   # remove z and m properties that can cause errors later
   st_zm()
 
+
+
 # create croping area to inside of switzerland
 cropping_sf <-
   read_sf(
@@ -62,8 +64,10 @@ cropping_sf <-
 subcatchments_rhine_v2 <- st_intersection(subcatchments_rhine, cropping_sf)
 subcatchments_rhine    <- subcatchments_rhine_v2
 
+subcatchments_rhine_union_2 <- st_union(subcatchments_rhine)
+
 # remove lakes from objects
-subcatchments_final <- st_difference(subcatchments_rhine, lakes)
+subcatchments_final   <- st_difference(subcatchments_rhine, lakes)
 river_intersect_lakes <- st_intersection(river_intersect_lakes, cropping_sf)
 
 ## extract environmental data

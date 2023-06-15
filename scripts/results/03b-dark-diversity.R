@@ -55,6 +55,9 @@ sp_raster_pres_pa <- paste0(sdm_dirs, "/output/raster_maps/presence_stack_pa_rf.
 sp_raster_suit_po <- paste0(sdm_dirs, "/output/raster_maps/suitability_stack_po_rf.TIF")
 sp_raster_suit_pa <- paste0(sdm_dirs, "/output/raster_maps/suitability_stack_pa_rf.TIF")
 
+# load actual random forests
+rf_pa <- paste0(sdm_dirs, "/output/final_models_rf_pa.RDS")
+
 # read in environmental data
 env_data <- rast(paste0(dd_env, '/ch-rasters/final-raster-set/all_env_data_RHEIN_RESIDUALS.tif'))
 
@@ -100,85 +103,250 @@ vars_renamed <- cbind(vars_shap, vars_renamed)
 
 # natural niche factors
 nn_factors <- c('ecoF_discharge_max_log10_SHAP','ecoF_slope_min_log10', 'stars_t_mn_m_c_SHAP', 
-                'stars_t_mx_m_c_SHAP','ecoF_flow_velocity_mean_SHAP', 'local_dis2lake')
-hab_factors <- c('local_flood_SHAP', 'local_imd_log10_ele_residual_SHAP', 'ecoF_eco_mean_ele_residual_SHAP')
+                'stars_t_mx_m_c_SHAP','ecoF_flow_velocity_mean_SHAP', 'local_dis2lake_SHAP')
+hab_factors <- c('local_wet_SHAP', 'local_flood_SHAP', 'local_imd_log10_ele_residual_SHAP', 'ecoF_eco_mean_ele_residual_SHAP')
 con_factors <- c('local_asym_cl_log10_SHAP')
 all_factors <- c(nn_factors, hab_factors, con_factors)
 
 all_dd <- lapply(1:length(sp_list), function(i){
   
-   ## loop for i 
-   do_pa <- file.exists(paste0(shap_dirs[i], "/shap_raster_pa.TIF"))
-   if(do_pa != T){next()}
-   
-   ## ORGANISE SHAPELY VALUES
-   # read in shapley values for a given species
-   shap_rast_pa_i <- rast(paste0(shap_dirs[i], "/shap_raster_pa.TIF"))
-   # take only the focal natural factors
-   shap_rast_pa_i <- shap_rast_pa_i[[which(names(shap_rast_pa_i) %in% all_factors)]]
-   # define within niche area
-   nn_shap_rast <- shap_rast_pa_i[[which(names(shap_rast_pa_i) %in% nn_factors)]]
-   # remove non_na
-   shap_rast_pa_i <- shap_rast_pa_i[[which(global(shap_rast_pa_i, fun="notNA")!=0)]]
-   # order by name
-   shap_rast_pa_i <- shap_rast_pa_i[[sort(names(shap_rast_pa_i))]]
-   
-   # ORGANISE SPECIES PRESENCE OR ABSENCE
-   model_data   <- readRDS(paste0(sdm_dirs[i], '/data/sdm_input_data.rds'))@pa_data$full_data
-   sp_rast <- rast(sp_raster_suit_pa[i])
-   pred_occ <- terra::extract(sp_rast, model_data[c('X', 'Y')])
-   threshold <- ecospat::ecospat.max.tss(pred_occ[,2], model_data$occ)$max.threshold
-   presence_map <- sp_rast
-   absence_map  <- sp_rast
-   # define presence map
-   presence_map[sp_rast<threshold] <- 0
-   presence_map[sp_rast>threshold] <- 1
-   # define absence map
-   absence_map[sp_rast<threshold] <- 1
-   absence_map[sp_rast>threshold] <- 0
-   
-   # align maps
-   shap_rast_pa_i <- resample(shap_rast_pa_i, sp_rast)
-   absence_map[is.na(shap_rast_pa_i[[1]])]  <- NA
-   presence_map[is.na(shap_rast_pa_i[[1]])] <- NA
-   
-   # DEFINE NICHES, EXPECTED DISTRIBUTIONS AND DARK DISTRIBUTIONS
-   # define within niche area by summation
-   nn_pos_sum <- app(nn_shap_rast, sum, na.rm = T)
-   nn_pos_sum <- resample(nn_pos_sum, absence_map)
-   
-   # get areas that are absent which could be present based on increasing suitability
-   expected_dist_sum <- sp_rast + nn_pos_sum
-   expected_dist_sum[expected_dist_sum < threshold] <- 0
-   expected_dist_sum[expected_dist_sum > threshold] <- 1
-   
-   # make expected but absent map based on niche effect that are predict presence
-   dark_dist_sum <- absence_map
-   dark_dist_sum[expected_dist_sum[]==0] <- 0 # exclude areas from absences where natural factors do not support
-
-   # make names cleaner
-   names(presence_map)   <- sp_list[i]
-   names(expected_dist_sum)  <- sp_list[i]
-   names(dark_dist_sum)  <- sp_list[i]
-
-   return(list(observed_dist       = presence_map, 
-               expected_dist_sum   = expected_dist_sum,
-               dark_dist_sum       = dark_dist_sum))
+  # get species
+  sp <- sp_list[i]
+  print(sp)
+  
+  # Check file exists for shapley raster object and baseline random forest
+  do_pa <- file.exists(paste0(shap_dirs[grep(sp, shap_dirs)], "/shap_raster_pa.TIF"))
+  do_rf <- file.exists(paste0(rf_pa[grep(sp, rf_pa)]))
+  if(do_pa != T | do_rf != T){next()}
+  
+  ## READING IN SHAPELY VALUES AND MODEL OBJECTS FOR FURTHER ANALYSIS
+  # read in shapley values for a given species
+  shap_rast_pa_i <- rast(paste0(shap_dirs[i], "/shap_raster_pa.TIF"))
+  # take all factors
+  shap_rast_pa_i <- shap_rast_pa_i[[which(names(shap_rast_pa_i) %in% all_factors)]]
+  # get shapley values for natural factors only
+  nn_shap_rast <- shap_rast_pa_i[[which(names(shap_rast_pa_i) %in% nn_factors)]]
+  # get shapley values for threats
+  threat_shap_rast <- shap_rast_pa_i[[which(names(shap_rast_pa_i) %in% c(con_factors, hab_factors))]]
+  # remove non_na
+  shap_rast_pa_i <- shap_rast_pa_i[[which(global(shap_rast_pa_i, fun="notNA")!=0)]]
+  # order by name
+  shap_rast_pa_i <- shap_rast_pa_i[[sort(names(shap_rast_pa_i))]]
+  
+  ## GET BASELINE VALUES TO CONVERT SHAPLEY VALUES TO SUITABILITIES THROUGH ADDITION TO REFERENCE BASELINE
+  # read in baseline model and obtain baseline values for prediction
+  # this value indicates the deviation from which the shapley values predict
+  baseline_model <- readRDS(rf_pa[grep(sp, rf_pa)])
+  baseline_value <- mean(as.numeric(predict(baseline_model, type = 'prob')[,2]), na.rm = T)
+  
+ #  # ORGANISE SPECIES PRESENCE OR ABSENCE
+ #  model_data   <- readRDS(paste0(sdm_dirs[i], '/data/sdm_input_data.rds'))@pa_data$full_data
+ sp_rast <- rast(sp_raster_suit_pa[i])
+ sp_rast <- resample(sp_rast, shap_rast_pa_i)
+ #  pred_occ <- terra::extract(sp_rast, model_data[c('X', 'Y')])
+ #  threshold <- ecospat::ecospat.max.tss(pred_occ[,2], model_data$occ)$max.threshold
+ #  presence_map <- sp_rast
+ #  absence_map  <- sp_rast
+ #  # define presence map
+ #  presence_map[sp_rast<threshold] <- 0
+ #  presence_map[sp_rast>threshold] <- 1
+ #  # define absence map
+ #  absence_map[sp_rast<threshold] <- 1
+ #  absence_map[sp_rast>threshold] <- 0
+ #  # align maps
+ #  shap_rast_pa_i <- resample(shap_rast_pa_i, sp_rast)
+ #  absence_map[is.na(shap_rast_pa_i[[1]])]  <- NA
+ #  presence_map[is.na(shap_rast_pa_i[[1]])] <- NA
+  
+  
+  ## DEFINE THE OBSERVED DISTRIBUTION USING THE BASELINE PREDICTION AND THE SHAPLEY VALUES
+  # sum all the shapley values
+  shap_all_sum <- app(shap_rast_pa_i, sum, na.rm = T)
+  
+  # add the baseline value to the sum of the shapley values to obtain a reconstruction of the habitat suitability
+  shap_suit_baseline <- shap_all_sum + baseline_value
+  # the shap_suit_baseline object is also the observed distribution
+  
+  # check the correlation is very high between methods, some error is expected from randomisation proceedure in the shapley estimations.
+  suit_method_correlation <- layerCor(c(shap_suit_baseline, sp_rast), fun = 'pearson', na.rm = T)
+  print(suit_method_correlation[[1]])
+  # define threshold for identifying range limits
+  pred_occ <- terra::extract(shap_suit_baseline, model_data[c('X', 'Y')])
+  threshold <- ecospat::ecospat.max.tss(pred_occ[,2], model_data$occ)$max.threshold
+  
+  # shapley defined absences
+  absence <- shap_suit_baseline
+  absence[shap_suit_baseline<threshold]  <- 1
+  absence[shap_suit_baseline>=threshold] <- 0
+  
+  ## DEFINE THE EXPECTED DISTRIBUTION USING THE BASELINE PREDICTION AND THE POSITIVE SHAPLEY VALUES, RELEASING THREATS
+  ## here we require 1. the areas with positive values for natural factors, and within 
+  ## this set, the 2. areas with positive values for threats (unthreatened), 3. areas that would be suitable if
+  
+  # expected distribution by masking suitability to only positive shapley values
+  nn_sum <- app(nn_shap_rast, sum, na.rm = T) # + baseline_value + app(abs(threat_shap_rast), sum, na.rm = T) #threat_shap_pos + abs(threat_shap_neg)
+  nn_sum_mask <- nn_sum
+  nn_sum_mask[nn_sum_mask<0] <- NA
+  
+  # take the distribution within the natural niche
+  nn_dist <- shap_suit_baseline
+  nn_dist[is.na(nn_sum_mask)] <- NA
+  
+  # add back in positive and negative threat effects (represent unthreatened areas and removal of threats respectively)
+  nn_dist_corrected <-  app(nn_shap_rast, sum, na.rm = T) + app(abs(threat_shap_rast), sum, na.rm = T)
+  nn_dist_corrected[is.na(nn_sum_mask)] <- NA
+  
+  # add to natural distribution and corrected distribution the baseline
+  nn_dist_corrected <- nn_dist_corrected + baseline_value
+  
+  # distribution completeness
+  # plot(nn_dist_corrected - nn_dist)
+  expected_distribution <- nn_dist_corrected
+  # expected_distribution[is.na(expected_distribution)] <- 0
+  # expected_distribution[is.na(shap_suit_baseline)] <- NA
+  
+  # defining a threshold here is problematic because the observational data are influenced by mutliple processes, 
+  # so is biased and does not then match up conceptually with any corrected expected distributions. 
+  
+  # define observed distribution
+  observed_distribution <- shap_suit_baseline
+  observed_distribution[is.na(expected_distribution)] <- NA
+  
+  # define observed and present by removing locations predicted as absences
+  observed_and_present <- shap_suit_baseline
+  observed_and_present[absence!=0] <- NA
+  
+  # find areas of the expected distribution that are absences in the modelled distribution
+  expected_but_absent <- expected_distribution
+  expected_but_absent[absence!=1] <- NA
+  
+  # NOTE:
+  # the observed_distribution and expected_distribution have the same masking, 
+  # such that the observed is simply the expected but with the effects of threat factors retained in the
+  # habitat suitability score. In this way, we can directly compare these layers as they are both build from the 
+  # partitioned suitability scores using the shapley values.
+  # In contrast, the observed_and_present is the observed_distribution but removing all locations that are absences
+  # and the expected_but_absence are the expected_distribution but removing all locations that are presences. The 
+  # removal of locaitons is based on a thresholded suitability score from the original data, so is inherently 
+  # biased towards representing all the processes that affect a species distribution together, whereas our 
+  # comparison of observed_distribution and expected_distribution are built from partitioning the contributions
+  # based on different categories so is unbiased, but we lack a clear way to define a 'presence' or 'absence' 
+  # as is often reported in the literature. 
+  
+  # use of these objects in community stacking:
+  # the stack of of observed and present can give the species richness
+  # the stack of expected but absent can give the dark diversity
+  # the stack of expected distribution can dive the expected diversity
+  # the difference between expected and observed distributions represents the shadow distribution
+  
+  # defining the shadow distribution as the different between the expected distribution and the observed distribution
+  shadow_distribution = expected_distribution - observed_distribution
+  # higher values means a greater shadow and anthropic influence, 
+  # negative values indicate where human influences are supporting species where they would normally 
+  # be less suitable 
+  
+  # make names cleaner for processing afterwards
+  names(observed_distribution) <- sp
+  names(expected_distribution) <- sp
+  names(expected_but_absent)   <- sp
+  names(observed_and_present)  <- sp
+  names(shadow_distribution)   <- sp
+  
+  ## return the objects of interest
+  return(list(observed_distribution = observed_distribution, 
+              expected_distribution = expected_distribution, 
+              expected_but_absent   = expected_but_absent, 
+              observed_and_present  = observed_and_present, 
+              shadow_distribution = shadow_distribution))
+  
 })
 
 # get names
 names(all_dd) <- sp_list
+
+#### Make plot of all distribution types for a given species ----
+
+tmap_mode('plot')
+
+river_lake_tm <- tm_shape(river_intersect_lakes) + 
+  tm_lines(legend.show = F, col = 'black', lwd = 0.5) + 
+  tm_shape(lakes) +
+  tm_polygons(border.col = "black", col = "white", legend.show = F)
+
+pdf(paste0(fig_dir, "/dark_diversity/species_maps.pdf"),
+  width = 10, height = 15,
+  bg = "transparent"
+)
+
+for (i in 1:length(names(all_dd))) {
+  sp_dist_all <- rast(all_dd[[i]])
+
+  print(tmap_arrange(
+    tm_shape(sp_dist_all$observed_distribution) +
+      tm_raster(
+        style = "cont", title = "observed suitability inside niche",
+        breaks = c(0, 0.5, 1), legend.is.portrait = F
+      ) +
+      tm_legend(scale = 1.5) +
+      tm_layout(main.title = names(all_dd)[i]) + 
+      river_lake_tm,
+    tm_shape(sp_dist_all$expected_distribution) +
+      tm_raster(
+        style = "cont", title = "expected suitability inside niche",
+        breaks = c(0, 0.5, 1), legend.is.portrait = F
+      ) +
+      tm_legend(scale = 1.5) + 
+      river_lake_tm,
+    tm_shape(sp_dist_all$expected_but_absent) +
+      tm_raster(
+        style = "cont", title = "inside niche, but absent",
+        breaks = c(0, 0.5, 1), legend.is.portrait = F
+      ) +
+      tm_legend(scale = 1.5) + 
+      river_lake_tm,
+    tm_shape(sp_dist_all$observed_and_present) +
+      tm_raster(
+        style = "cont", title = "inside niche, and present",
+        breaks = c(0, 0.5, 1), legend.is.portrait = F
+      ) +
+      tm_legend(scale = 1.5) + 
+      river_lake_tm,
+    tm_shape(sp_dist_all$shadow_distribution) +
+      tm_raster(
+        style = "cont", title = "shadow distribution",
+        legend.is.portrait = F
+      ) +
+      tm_legend(scale = 1.5) +
+      tm_shape(sp_dist_all$expected_but_absent) +
+      tm_raster(palette = "red", legend.show = F) + 
+      river_lake_tm,
+    nrow = 3, ncol = 2
+  ))
+}
+dev.off()
+
+#### AGGREGATE RESULTING DISTRIBUTIONS ACROSS ALL SPECIES ----
 
 ## REMOVE NON-NATIVE SPECIES
 all_dd <- all_dd[-which(names(all_dd) == 'Oncorhynchus mykiss')]
 
 ## SUM RESULTING DISTRIBUTIONS OVER ALL SPECIES
 # compile observed distributions
-sum_observed_dist <- app(rast(lapply(all_dd, function(x) x$observed_dist)), sum, na.rm = T)
+sum_observed_dist <- app(rast(lapply(all_dd, function(x) x$observed_distribution)), sum, na.rm = T)
 # compile expected distributions summing shapley values of natural niche
-sum_expected_dist<- app(rast(lapply(all_dd, function(x) x$expected_dist_sum)), sum, na.rm = T)
+sum_expected_dist<- app(rast(lapply(all_dd, function(x) x$expected_distribution)), sum, na.rm = T)
 # compile dark distributions based on summation of shapley values of natural niche
-sum_dark_dist <- app(rast(lapply(all_dd, function(x) x$dark_dist_sum)), sum, na.rm = T)
+sum_expected_but_absent <- app(rast(lapply(all_dd, function(x) x$expected_but_absent)), sum, na.rm = T)
+# compile sum of observed and present
+sum_observed_and_present <- app(rast(lapply(all_dd, function(x) x$observed_and_present)), sum, na.rm = T)
+# compile sum of shadow distributions
+mean_shadow_distribution <- app(rast(lapply(all_dd, function(x) x$shadow_distribution)), mean, na.rm = T)
+
+# load in tmap to view
+library(tmap)
+tmap_mode('view')
+tm_shape(sum_shadow_distribution) + 
+  tm_raster()
 
 # look at rough plots: OBSERVED DISTRIBUTION
 plot(sum_observed_dist)

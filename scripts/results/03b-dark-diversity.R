@@ -127,6 +127,18 @@ all_shadow <- lapply(1:length(sp_list), function(x){
 
 names(all_shadow) <- sp_list
 
+# summarise shadow distribution summaries across all species
+summary_shadow <- bind_rows(lapply(list.files(paste0(fig_dir, '/shadow_dist_summaries/statistics'), full.names = T), read_csv))
+
+# group and aggregate
+summary_shadow_mean <- summary_shadow %>% 
+  group_by(property) %>% 
+  do(mean = round(mean(.$value, na.rm = T), 2),
+     sd   = round(sd(.$value, na.rm = T),2)) %>% 
+  unnest(cols = c(mean, sd))
+
+write_csv(summary_shadow_mean, file = paste0(fig_dir, '/shadow_dist_summaries/summary_across_species.csv'))
+
 #### 5. Map shadow distributions for each species ----
 
 ## biplots 
@@ -194,7 +206,7 @@ lapply(all_shadow, function(x) {
 })
 
 
-
+#### 6. ----
 
 
 #### 4A GET RASTER MAPS OF SHAPLEY VALUES ----

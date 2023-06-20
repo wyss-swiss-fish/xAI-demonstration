@@ -397,14 +397,14 @@ habitat_factors = c('local_wet_SHAP', 'local_flood_SHAP',
 conn_factors = 'local_asym_cl_log10_SHAP'
 
 ### Apply function that estimates the properties of the shadow distributions
-sp_shap <- summarise_shadow(sdm_input_data = sdm_dirs[1], 
-                            raster_data = sp_raster_suit_pa, 
-                            shap = shap_pa, 
-                            natural_niche_factors = natural_niche_factors,
-                            habitat_factors = habitat_factors,
-                            conn_factors = conn_factors,
-                            species = sp_list[1],
-                            output_folder = paste0('figures/ubelix_SDM_RF_MARCH_v6/shadow_dist_summaries/'))
+sp_shap <- shadow_distribution(sdm_input_data = sdm_dirs[1], 
+                               raster_data = sp_raster_suit_pa, 
+                               shap = shap_pa, 
+                               natural_niche_factors = natural_niche_factors,
+                               habitat_factors = habitat_factors,
+                               conn_factors = conn_factors,
+                               species = sp_list[1],
+                               output_folder = paste0('figures/ubelix_SDM_RF_MARCH_v6/shadow_dist_summaries/'))
 
 
 # create scatter plot of shapley values against suitability classified by threat

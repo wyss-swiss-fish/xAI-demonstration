@@ -30,7 +30,7 @@
  #output_folder <- paste0('figures/ubelix_SDM_RF_MARCH_v6/shadow_dist_summaries/')
 
 
-summarise_shadow <- function(sdm_input_data, 
+shadow_distribution <- function(sdm_input_data, 
                              raster_data, 
                              shap, 
                              natural_niche_factors, 
@@ -38,6 +38,7 @@ summarise_shadow <- function(sdm_input_data,
                              conn_factors, 
                              species,
                              output_folder){
+  
   
   # if any of the file locations do not exist then stop
   files <- c(sdm_input_data, raster_data, shap)
@@ -62,7 +63,7 @@ summarise_shadow <- function(sdm_input_data,
   # read in shapley values
   sp_shap <- readRDS(shap)
   sp_shap <- left_join(
-    # join to subcatchment information
+    # join to subcatchment information read in from the spatial data processing scripts
     subcatchments_final %>%
       select(TEILEZGNR),
     sp_shap
@@ -75,11 +76,17 @@ summarise_shadow <- function(sdm_input_data,
   
   
   #### GENERATE SUMMARY PROPERTIES TO REPORT: ECOLOGICAL NICHE
+  natural_niche_factors <- natural_niche_factors[natural_niche_factors %in% names(sp_shap)]
+  habitat_factors <- habitat_factors[habitat_factors %in% names(sp_shap)]
+  conn_factors <- conn_factors[conn_factors %in% names(sp_shap)]
+  
+  all_threats <- c(habitat_factors, conn_factors)
+  all_threats <- all_threats[all_threats %in% names(sp_shap)]
   
   # define whether a subcatchment is inside or outside the environmental niche
   sp_shap$natural_niche <- rowSums(st_drop_geometry(sp_shap[,natural_niche_factors]))>0
   sp_shap$natural_niche_value <- rowSums(st_drop_geometry(sp_shap[,natural_niche_factors]))
-  sp_shap$natural_niche_all_positive <- rowSums(st_drop_geometry(sp_shap[,natural_niche_factors]) > 0) == 4
+  sp_shap$natural_niche_all_positive <- rowSums(st_drop_geometry(sp_shap[,natural_niche_factors]) > 0) == length(natural_niche_factors)
   
   # Summary value 1: percentage of all catchments inside ecological niche 
   val_1 <- c('% sub-catchments inside ecological niche', 
@@ -92,22 +99,18 @@ summarise_shadow <- function(sdm_input_data,
   val_2 <- t(val_2)
   
   # Summary value 3: percentage of all catchments positive for each individual niche factor
-  natural_niche_factors <- natural_niche_factors[natural_niche_factors %in% names(sp_shap)]
   val_niche <- sapply(natural_niche_factors, function(x) round(table(sp_shap[[x]]>0) / nrow(sp_shap), 2)[[2]]*100)
-  val_3 <- data.frame(paste0(natural_niche_factors, ' positive contribution'), val_niche)
+  val_3 <- data.frame(paste0('% all subcatchments with a positive contribution of ', natural_niche_factors), val_niche)
   
   
   #### GENERATE SUMMARY PROPERTIES TO REPORT: THREATENED AREAS INSIDE NICHE
-  habitat_factors <- habitat_factors[habitat_factors %in% names(sp_shap)]
-  all_threats <- c(habitat_factors, conn_factors)
-  all_threats <- all_threats[all_threats %in% names(sp_shap)]
   
   # define sp_shap for only those subcatchments inside the natural niche
   sp_shap_nn <- sp_shap %>% filter(natural_niche == T)
   
   # Summary value 4: percentage of nn catchments negative for each individual threat factor
   val_threat <- sapply(all_threats, function(x) round(table(sp_shap_nn[[x]]<0) / nrow(sp_shap_nn), 2)[[2]]*100)
-  val_4 <- data.frame(paste0(all_threats, ' negative contribution'), val_threat)
+  val_4 <- data.frame(paste0('% subcatchments inside niche with a negative contribution of ', all_threats), val_threat)
   
   
   # Summary values 5: percentage of nn catchments affected negatively by any threat
@@ -166,8 +169,16 @@ summarise_shadow <- function(sdm_input_data,
   #### CREATE SPATIAL OBJECT FOR PLOTTING
 
   # add in whether habitat factors are negative or positive
-  sp_shap$neg_habitat <- rowMeans(st_drop_geometry(sp_shap[habitat_factors])) < 0
-  sp_shap$neg_con <- rowMeans(st_drop_geometry(sp_shap[conn_factors])) < 0
+  if(length(habitat_factors) == 0){
+    sp_shap$neg_habitat <- F
+    }else{
+      sp_shap$neg_habitat <- rowMeans(st_drop_geometry(sp_shap[habitat_factors])) < 0
+      }
+  if(length(conn_factors) == 0){
+    sp_shap$neg_con <- F
+    }else{
+    sp_shap$neg_con <- rowMeans(st_drop_geometry(sp_shap[conn_factors])) < 0
+    }
   
   # create categorisation of niche and threat combinations in a given subcatchment
   sp_shap$niche_categories <- as.factor(ifelse(sp_shap$natural_niche == T & sp_shap$neg_con == F & sp_shap$neg_habitat == F, '2. inside ecological niche',

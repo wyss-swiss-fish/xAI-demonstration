@@ -99,7 +99,10 @@ vars_renamed = c('discharge',
 vars_renamed <- cbind(vars_shap, vars_renamed)
 
 
-#### 4A GET RASTER MAPS OF SHAPLEY VALUES ----
+#### 4. Shadow distribution summaries for all species ----
+
+# custom function to estimate shadow distribution properties and output as a shapefile
+source('scripts/functions/shadow_distribution.R')
 
 # natural niche factors
 nn_factors <- c('ecoF_discharge_max_log10_SHAP','ecoF_slope_min_log10', 'stars_t_mn_m_c_SHAP', 
@@ -107,6 +110,94 @@ nn_factors <- c('ecoF_discharge_max_log10_SHAP','ecoF_slope_min_log10', 'stars_t
 hab_factors <- c('local_wet_SHAP', 'local_flood_SHAP', 'local_imd_log10_ele_residual_SHAP', 'ecoF_eco_mean_ele_residual_SHAP')
 con_factors <- c('local_asym_cl_log10_SHAP')
 all_factors <- c(nn_factors, hab_factors, con_factors)
+
+# run shadow distributions across all species
+all_shadow <- lapply(1:length(sp_list), function(x){
+  
+  shadow_distribution(sdm_input_data = sdm_dirs[x], 
+                      raster_data = sp_raster_suit_pa[x], 
+                      shap = shap_pa[x], 
+                      natural_niche_factors = nn_factors,
+                      habitat_factors = hab_factors,
+                      conn_factors = con_factors,
+                      species = sp_list[x],
+                      output_folder = paste0(fig_dir, '/shadow_dist_summaries/statistics'))
+  
+})
+
+names(all_shadow) <- sp_list
+
+#### 5. Map shadow distributions for each species ----
+
+## biplots 
+dir.create(paste0(fig_dir, '/shadow_dist_summaries/biplot/'), recursive = T)
+lapply(all_shadow, function(x){
+ 
+   # create scatter plot of shapley values against suitability classified by threat
+   pdf(paste0(fig_dir, '/shadow_dist_summaries/biplot/', unique(x$species_name), '_biplot.pdf'), 
+       width = 10, height = 5, bg = 'transparent')
+  
+   print(ggplot() + 
+     geom_point(data = x %>% arrange(niche_categories), 
+                aes(y = suitability, 
+                    x = natural_niche_value, 
+                    col = niche_categories, 
+                    size = niche_categories,
+                    alpha = is.na(presence)), 
+                stroke = 0) + 
+     xlab(expression('abiotic niche' ~phi~ 'values')) + 
+     ylab('predicted habitat suitability') + 
+     # scale_colour_manual('', values = c('#E8E8E8','#06C4C4','#D1D111', '#D16111', '#F70000')) + 
+     theme_bw() + 
+     theme(panel.grid = element_blank(),
+           legend.position = 'left', 
+           panel.border = element_blank(),
+           panel.background = element_blank(),
+           plot.background = element_blank(),
+           axis.line = element_line()) + 
+     geom_vline(aes(xintercept = 0), lty = 2) + 
+     scale_size_manual(values = c(1,2,2,2,2)) + 
+     scale_alpha_manual(values = c(1,0.4)))
+
+   dev.off()
+   
+})
+
+
+## threat maps within ecological niche
+dir.create(paste0(fig_dir, '/shadow_dist_summaries/threat_niche/'), recursive = T)
+levels = c('1. outside ecological niche',
+           '2. inside ecological niche',
+           '3. poor connectivity',
+           '4. poor habitat',
+           '5. poor connectivity and habitat')
+# map the threat maps
+lapply(all_shadow, function(x) {
+  # create scatter plot of shapley values against suitability classified by threat
+  pdf(paste0(fig_dir, "/shadow_dist_summaries/threat_niche/", unique(x$species_name), "_threat_niche.pdf"),
+    width = 10, height = 5, bg = "transparent"
+  )
+  print(tm_shape(x) +
+    tm_fill(
+      col = "niche_categories",
+      style = "fixed",
+      palette = c("#E8E8E8", "#06C4C4", "#D1D111", "#D16111", "#F70000"),
+      breaks = levels,
+      title = ""
+    ) +
+    tm_shape(river_intersect_lakes) +
+    tm_lines(legend.show = F, col = "black") +
+    tm_shape(lakes) +
+    tm_polygons(border.col = "black", col = "white", legend.show = F) +
+    tm_layout(frame = F, bg.color = "transparent", title = unique(x$species_name)))
+  dev.off()
+})
+
+
+
+
+
+#### 4A GET RASTER MAPS OF SHAPLEY VALUES ----
 
 all_dd <- lapply(1:length(sp_list), function(i){
   

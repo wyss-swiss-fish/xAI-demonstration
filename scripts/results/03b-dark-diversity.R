@@ -206,7 +206,128 @@ lapply(all_shadow, function(x) {
 })
 
 
-#### 6. ----
+#### 6. Create the maps of shadow distributions from spatial objects shapley values ----
+
+
+all_dd <- lapply(1:length(all_shadow), function(i){
+  
+  # get species
+  sp <- all_shadow[[i]]$species_name[1]
+  print(sp)
+  
+  # get shapley shape files distribution
+  shap_sp_i <- all_shadow[[i]]
+  
+  ## DEFINE THE OBSERVED DISTRIBUTION USING THE BASELINE PREDICTION AND THE SHAPLEY VALUES
+  
+  # get the baseline value as the mean of all habitat suitability predictions
+  baseline_value <- mean(shap_sp_i$suitability, na.rm = T)
+    
+  # sum all the shapley values
+  shap_sp_i$shap_all_sum <- rowSums(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% all_factors]), na.rm = T)
+  
+  # get the baseline suitability values estimated as the sum of the shapely + baseline
+  # this ensure internal consistency and that all values are estimated from the shapely values
+  shap_sp_i$shap_suit_baseline <- shap_sp_i$shap_all_sum + baseline_value
+  # the shap_suit_baseline object is also the observed distribution
+  
+  # check the correlation is very high between methods, some error is expected from randomisation proceedure in the shapley estimations.
+  suit_method_correlation <- cor(shap_sp_i$shap_suit_baseline, shap_sp_i$suitability, method = 'pearson')
+
+  # shapley defined absences
+  shap_sp_i$shap_presence_baseline <- ifelse(shap_sp_i$shap_suit_baseline >= shap_sp_i$threshold, 1, 0)
+    
+  ## DEFINE THE EXPECTED DISTRIBUTION USING THE BASELINE PREDICTION AND THE POSITIVE SHAPLEY VALUES, RELEASING THREATS
+  ## here we require 1. the areas with positive values for natural factors, and within 
+  ## this set, the 2. areas with positive values for threats (unthreatened), 3. areas that would be suitable if
+  
+  # expected distribution by masking suitability to only positive shapley values
+  shap_sp_i$nn_sum      <- rowSums(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% nn_factors]), na.rm = T)
+  shap_sp_i$nn_sum_mask <- ifelse(shap_sp_i$nn_sum < 0, NA, shap_sp_i$nn_sum)
+
+  # take the distribution within the natural niche
+  shap_sp_i$nn_dist <- ifelse(is.na(shap_sp_i$nn_sum_mask), NA, shap_sp_i$shap_suit_baseline)
+  
+  # get sum of threat effects 
+  # add back in positive and negative threat effects (represent unthreatened areas and removal of threats respectively)
+  shap_sp_i$nn_dist_corrected <- shap_sp_i$nn_sum + rowSums(abs(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% c(hab_factors, con_factors)])), na.rm = T)
+  shap_sp_i$nn_dist_corrected <- ifelse(is.na(shap_sp_i$nn_sum_mask), NA, shap_sp_i$nn_dist_corrected)
+  
+  # add to natural distribution and corrected distribution the baseline
+  shap_sp_i$expected_distribution <- shap_sp_i$nn_dist_corrected + baseline_value
+  
+  # define observed distribution
+  shap_sp_i$observed_distribution <- ifelse(is.na(shap_sp_i$expected_distribution), NA, shap_sp_i$shap_suit_baseline)
+
+  # define observed and present by removing locations predicted as absences
+  shap_sp_i$observed_and_present <- ifelse(shap_sp_i$shap_presence_baseline == 0, NA, shap_sp_i$shap_suit_baseline)
+
+  # find areas of the expected distribution that are absences in the modelled distribution
+  shap_sp_i$expected_but_absent <- ifelse(shap_sp_i$shap_presence_baseline == 0, shap_sp_i$expected_distribution, NA)
+
+  # define the shadow distribution quantitatively as the observed - expected
+  shap_sp_i$shadow_distribution_EminusO <- shap_sp_i$observed_distribution - shap_sp_i$expected_distribution
+  
+  tm_shape(shap_sp_i) + tm_fill(col = 'shap_suit_baseline')
+  tm_shape(shap_sp_i) + tm_fill(col = 'observed_distribution')
+  tm_shape(shap_sp_i) + tm_fill(col = 'expected_distribution')
+  tm_shape(shap_sp_i) + tm_fill(col = 'shadow_distribution_EminusO')
+  tm_shape(shap_sp_i) + tm_fill(col = 'expected_but_absent')
+  tm_shape(shap_sp_i) + tm_fill(col = 'observed_and_present')
+  
+  
+  
+  # NOTE:
+  # the observed_distribution and expected_distribution have the same masking, 
+  # such that the observed is simply the expected but with the effects of threat factors retained in the
+  # habitat suitability score. In this way, we can directly compare these layers as they are both build from the 
+  # partitioned suitability scores using the shapley values.
+  # In contrast, the observed_and_present is the observed_distribution but removing all locations that are absences
+  # and the expected_but_absence are the expected_distribution but removing all locations that are presences. The 
+  # removal of locaitons is based on a thresholded suitability score from the original data, so is inherently 
+  # biased towards representing all the processes that affect a species distribution together, whereas our 
+  # comparison of observed_distribution and expected_distribution are built from partitioning the contributions
+  # based on different categories so is unbiased, but we lack a clear way to define a 'presence' or 'absence' 
+  # as is often reported in the literature. 
+  
+  # use of these objects in community stacking:
+  # the stack of of observed and present can give the species richness
+  # the stack of expected but absent can give the dark diversity
+  # the stack of expected distribution can dive the expected diversity
+  # the difference between expected and observed distributions represents the shadow distribution
+  
+  # defining the shadow distribution as the different between the expected distribution and the observed distribution
+  shadow_distribution = expected_distribution - observed_distribution
+  # higher values means a greater shadow and anthropic influence, 
+  # negative values indicate where human influences are supporting species where they would normally 
+  # be less suitable 
+  
+  # define strict version of above
+  shadow_distribution_STRICT = expected_distribution_STRICT - observed_distribution_STRICT
+  
+  
+  # make names cleaner for processing afterwards
+  names(observed_distribution) <- sp; names(observed_distribution_STRICT) <- sp
+  names(expected_distribution) <- sp; names(expected_distribution_STRICT) <- sp
+  names(expected_but_absent)   <- sp; names(expected_but_absent_STRICT)   <- sp
+  names(observed_and_present)  <- sp
+  names(shadow_distribution)   <- sp; names(shadow_distribution_STRICT)   <- sp
+  
+  ## return the objects of interest
+  return(list(observed_distribution = observed_distribution, 
+              expected_distribution = expected_distribution, 
+              expected_but_absent   = expected_but_absent, 
+              observed_and_present  = observed_and_present, 
+              shadow_distribution   = shadow_distribution, 
+              observed_distribution_STRICT = observed_distribution_STRICT, 
+              expected_distribution_STRICT = expected_distribution_STRICT, 
+              expected_but_absent_STRICT = expected_but_absent_STRICT, 
+              shadow_distribution_STRICT = shadow_distribution_STRICT))
+  
+})
+
+# get names
+names(all_dd) <- sp_list
 
 
 #### 4A GET RASTER MAPS OF SHAPLEY VALUES ----

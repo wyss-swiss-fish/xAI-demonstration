@@ -40,6 +40,7 @@ shadow_distribution <- function(sdm_input_data,
                              output_folder){
   
   
+
   # if any of the file locations do not exist then stop
   files <- c(sdm_input_data, raster_data, shap)
   stopifnot(sum(sapply(files, file.exists))==3)
@@ -71,7 +72,8 @@ shadow_distribution <- function(sdm_input_data,
     # remove areas where suitability is not predicted (no covariate data)
     filter(!is.na(suitability)) %>% 
     # apply threshold suitabilities to obtain predicted presence-absence
-    mutate(presence = ifelse(suitability < threshold, NA, suitability))
+    mutate(presence = ifelse(suitability < threshold, NA, suitability), 
+           threshold = threshold)
   
   
   
@@ -84,7 +86,7 @@ shadow_distribution <- function(sdm_input_data,
   all_threats <- all_threats[all_threats %in% names(sp_shap)]
   
   # define whether a subcatchment is inside or outside the environmental niche
-  sp_shap$natural_niche <- rowSums(st_drop_geometry(sp_shap[,natural_niche_factors]))>0
+  sp_shap$natural_niche <- rowSums(st_drop_geometry(sp_shap[,natural_niche_factors])) > 0
   sp_shap$natural_niche_value <- rowSums(st_drop_geometry(sp_shap[,natural_niche_factors]))
   sp_shap$natural_niche_all_positive <- rowSums(st_drop_geometry(sp_shap[,natural_niche_factors]) > 0) == length(natural_niche_factors)
   
@@ -99,7 +101,7 @@ shadow_distribution <- function(sdm_input_data,
   val_2 <- t(val_2)
   
   # Summary value 3: percentage of all catchments positive for each individual niche factor
-  val_niche <- sapply(natural_niche_factors, function(x) round(table(sp_shap[[x]]>0) / nrow(sp_shap), 2)[[2]]*100)
+  val_niche <- sapply(natural_niche_factors, function(x) round(table(sp_shap[[x]] > 0) / nrow(sp_shap), 2)[[2]]*100)
   val_3 <- data.frame(paste0('% all subcatchments with a positive contribution of ', natural_niche_factors), val_niche)
   
   
@@ -109,24 +111,31 @@ shadow_distribution <- function(sdm_input_data,
   sp_shap_nn <- sp_shap %>% filter(natural_niche == T)
   
   # Summary value 4: percentage of nn catchments negative for each individual threat factor
-  val_threat <- sapply(all_threats, function(x) round(table(sp_shap_nn[[x]]<0) / nrow(sp_shap_nn), 2)[[2]]*100)
+  val_threat <- sapply(all_threats, function(x) round(table(sp_shap_nn[[x]] < 0) / nrow(sp_shap_nn), 2)[[2]]*100)
   val_4 <- data.frame(paste0('% subcatchments inside niche with a negative contribution of ', all_threats), val_threat)
   
-  
-  # Summary values 5: percentage of nn catchments affected negatively by any threat
-  val_threat_any <- data.frame(round(table(rowSums(sapply(all_threats, function(x){sp_shap_nn[[x]]<0})))/nrow(sp_shap_nn)*100))
+  # Summary values any threats: percentage of nn catchments affected negatively by any threat
+  val_threat_any <- data.frame(round(table(rowSums(sapply(all_threats, function(x){sp_shap_nn[[x]] < 0})))/nrow(sp_shap_nn)*100))
   val_threat_any[,1] <- paste0('% of subcatchments inside niche with ', 0:length(all_threats),' threats negative')
+  
+  # Summary value % sub-catchments with at least 1 threat
+  val_threat_1 <- 100 - val_threat_any[1,2]
+  val_threat_1 <- t(c('% subcatchments inside niche with at least one negative threat', 
+                      val_threat_1))
+  # Summary values all threats: percentage of nn catchments affect negatively on average by threats
+  val_threat_all <- data.frame(round(table(rowSums(sapply(all_threats, function(x){sp_shap_nn[[x]]})) < 0)/nrow(sp_shap_nn)*100)[[2]])
+  val_threat_all <- t(c('% subcatchments inside niche with a negative net effect of all threats summed', 
+                        val_threat_all))
   
   
   # Summary value 6: habitat suitability in areas with at least 1 threat
-  sp_shap_nn$threatened <- rowSums(sapply(all_threats, function(x){sp_shap_nn[[x]]<0})) >= 1
+  sp_shap_nn$threatened <- rowSums(sapply(all_threats, function(x){sp_shap_nn[[x]] < 0})) >= 1
   val_6 <- sp_shap_nn %>% 
     group_by(threatened) %>% 
     do(mean_suit = round(mean(.$suitability, na.rm = T), 2)) %>% 
     unnest(cols = c(mean_suit))
   val_6$threatened <- c('mean suitability in unthreatened sub-catchments', 
                         'mean suitability in threatened sub-catchments')
-  
   
   # Summary value 7: how much higher/lower is the suitability in the threatened locations
   val_7 <- t(c('% reduction in suitability in threatened areas within niche', 
@@ -147,8 +156,8 @@ shadow_distribution <- function(sdm_input_data,
   
   # return all created values together as a long dataframe
   shadow_distribution_summaries <- bind_rows(lapply(list(val_1, val_2, val_3, val_4, 
-                        val_threat_any, val_6, val_7, 
-                        val_8a, val_8b, val_8c), function(x){
+                                                         val_threat_any, val_threat_1, val_threat_all, val_6, val_7, 
+                                                         val_8a, val_8b, val_8c), function(x){
     x <- data.frame(x)
     names(x) <- c('property', 'value'); rownames(x) <- NULL
     lapply(x, as.character)}))

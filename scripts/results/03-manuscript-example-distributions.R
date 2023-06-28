@@ -390,8 +390,10 @@ source('scripts/functions/shadow_distribution.R')
 natural_niche_factors = c('ecoF_discharge_max_log10_SHAP', 
                           'stars_t_mn_m_c_SHAP', 
                           'ecoF_flow_velocity_mean_SHAP', 
-                          'local_dis2lake_SHAP')
-habitat_factors = c('local_wet_SHAP', 'local_flood_SHAP', 
+                          'local_dis2lake_SHAP', 
+                          'ecoF_slope_min_log10_SHAP')
+habitat_factors = c('local_wet_SHAP', 
+                    'local_flood_SHAP', 
                     'local_imd_log10_ele_residual_SHAP', 
                     'ecoF_eco_mean_ele_residual_SHAP')
 conn_factors = 'local_asym_cl_log10_SHAP'

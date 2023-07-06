@@ -442,49 +442,33 @@ all_dd_bind <- bind_rows(all_dd)
 all_dd_bind$shap_suitability_threshold <- ifelse(all_dd_bind$shap_suit_baseline < threshold, NA, all_dd_bind$shap_suit_baseline)
 all_dd_bind$expected_distribution_threshold <- ifelse(all_dd_bind$expected_distribution < threshold, NA, all_dd_bind$expected_distribution)
 
+# estimate completeness per species
+all_dd_bind$completeness <- all_dd_bind$observed_distribution / all_dd_bind$expected_distribution
+
+# remove areas from distributions where they are not naturally predicted to occur
+all_dd_bind <- all_dd_bind %>% filter(!is.na(expected_distribution))
+
 # summarise the distribution properties per subcatchment
-dist_properties <- c('suitability', 
+dist_properties <- c('observed_distribution', 
                      'expected_distribution',
-                     'observed_distribution', 
                      'SD_expected_threat_continuous', 
-                     'SD_expected_sum_presence_negative_threat',
                      'SD_expected_sum_presence_negative_con', 
-                     'SD_expected_sum_presence_negative_habitat')
+                     'SD_expected_sum_presence_negative_habitat', 
+                     'completeness')
 all_dd_sum <- all_dd_bind %>% 
   select(TEILEZGNR, species_name, 
          any_of(dist_properties)) %>% 
   st_drop_geometry() %>% 
   group_by(TEILEZGNR) %>% 
-  summarise_at(dist_properties, 
-               sum, 
+  nest() %>% 
+  mutate(n_sp = purrr::map(data, ~sum(!is.na(.$expected_distribution)))) %>% 
+  unnest(c(data, n_sp)) %>% 
+  filter(n_sp > 2) %>% 
+    summarise_at(dist_properties, 
+               mean, 
                na.rm = T) %>% 
-  left_join(., all_dd_bind %>% select(TEILEZGNR) %>% unique()) %>% 
-  # calculate community completeness here
-  mutate(community_completeness = (.$observed_distribution / .$expected_distribution)*100, 
-         community_completeness_threshold = (.$suitability / expected_distribution)*100) %>% 
-  mutate(community_completeness = ifelse(.$community_completeness > 100, 100, .$community_completeness), 
-         community_completeness_threshold  = ifelse(.$community_completeness_threshold > 100, 100, .$community_completeness_threshold)) %>% 
-  # filter out areas outside the ecological niche of all species
-  filter(!is.na(expected_distribution))
+  left_join(., all_dd_bind %>% select(TEILEZGNR) %>% unique())
 
-# calculate the weighted average shapley value
-all_dd_sum <- all_dd_bind %>% 
-  select(TEILEZGNR, species_name, 
-         expected_distribution, shadow_distribution_OminusE) %>% 
-  st_drop_geometry() %>% 
-  group_by(TEILEZGNR) %>% 
-  do(shadow_distribution_OminusE_weighted_mean = weighted.mean(.$shadow_distribution_OminusE, .$expected_distribution, na.rm = T)) %>% 
-  unnest(c(shadow_distribution_OminusE_weighted_mean)) %>% 
-  ungroup() %>% 
-  left_join(all_dd_sum %>% unique(), .)
-  
-# turn to NA all areas where we do not expect species
-all_dd_sum[all_dd_sum$expected_distribution == 0,dist_properties] <- NA
-
-# get summaries of each distribution type
-all_dd_sum %>% 
-   filter(expected_distribution != 0, !is.na(expected_distribution)) %>% 
-   summarise_at(c(dist_properties,'community_completeness'), mean, na.rm = T)
 
 # plot the summarised distributions
 all_dd_sum_sf <- all_dd_sum %>% st_as_sf()
@@ -497,34 +481,183 @@ river_base <- tm_shape(river_intersect_lakes) +
   tm_layout(frame = F,
             bg.color = "transparent")
 
-map_values <- function(x){print(tm_shape(subcatchments_rhine_union_2) + 
+map_values <- function(x, 
+                       breaks = NULL,
+                       palette, 
+                       legend.reverse = F){tm_shape(subcatchments_rhine_union_2) + 
     tm_polygons(col = 'gray90') + 
+    #tm_shape(all_dd_sum_sf %>% sample_n(., 100)) + 
     tm_shape(all_dd_sum_sf) + 
     tm_fill(col = x, 
             style = 'cont', 
             title = '', 
             legend.is.portrait = T,
-            legend.reverse = T,
-            palette = "Spectral", 
+            legend.reverse = legend.reverse,
+            palette = palette, 
             n = 10, 
             contrast = c(0, 1), 
             colorNA = 'transparent', 
-            textNA = "") + 
+            textNA = "", 
+            breaks = breaks) + 
     river_base + 
     tm_shape(subcatchments_rhine_union_2) + 
     tm_borders(col = 'black') + 
     tm_layout(legend.text.size = 1,
               legend.outside = F,
-              legend.position = c('right', 'top')))}
+              legend.position = c('left', 'top'))}
 
-dist_properties
-map_values('suitability')
-map_values('expected_distribution')
-map_values('observed_distribution')
-map_values('SD_expected_threat_continuous')
-map_values('SD_expected_sum_presence_negative_threat')
-map_values('SD_expected_sum_presence_negative_con')
-map_values('SD_expected_sum_presence_negative_habitat')
+# map of completeness
+mean_completeness_plot <- tm_shape(subcatchments_rhine_union_2) + 
+  tm_polygons(col = 'gray90') + 
+  #tm_shape(all_dd_sum_sf %>% sample_n(., 100)) + 
+  tm_shape(all_dd_sum_sf) + 
+  tm_fill(col = 'completeness', 
+          style = 'cont', 
+          title = '', 
+          legend.is.portrait = T,
+          legend.reverse = T,
+          palette = 'Spectral', 
+          n = 10, 
+          contrast = c(0, 1), 
+          colorNA = 'transparent', 
+          textNA = "", 
+          breaks = round(seq(from = 0.5, 
+                       to = 1, 
+                       length.out = 4),2)) + 
+  river_base + 
+  tm_shape(subcatchments_rhine_union_2) + 
+  tm_borders(col = 'black') + 
+  tm_layout(legend.text.size = 1,
+            legend.outside = F,
+            legend.position = c('left', 'top'))
+
+png(paste0(fig_dir, '/dark_diversity/all_maps.png'),
+    width = 4000, height = 1500, res = 300,
+    bg = "transparent")
+tmap_arrange(map_values('observed_distribution',           breaks = c(0.25, 0.5, 0.75, 1), palette = 'Spectral', legend.reverse = T),
+             map_values('expected_distribution', breaks = c(0.25, 0.5, 0.75, 1), palette = 'Spectral', legend.reverse = T),
+             mean_completeness_plot,
+             map_values('SD_expected_sum_presence_negative_con', breaks = round(seq(0, 1, length.out = 4),2), palette = '-Spectral', legend.reverse = T),
+             map_values('SD_expected_sum_presence_negative_habitat', breaks = round(seq(0, 4, length.out = 4), 2), palette = '-Spectral', legend.reverse = T), 
+             nrow = 2, ncol = 3)
+dev.off()
+
+
+#### Data summaries of each property ----
+
+
+round(summary(all_dd_sum_sf$shap_suit_baseline), 2)
+mean_suit <- mean(all_dd_sum_sf$shap_suit_baseline,na.rm = T)
+round(summary(all_dd_sum_sf$expected_distribution), 2)
+mean_exp <- mean(mean(all_dd_sum_sf$expected_distribution,na.rm = T))
+# average reduction in suitability
+((mean_suit - mean_exp) / mean_exp)*100 # -13.9858 % reduction in suitability 
+t.test(all_dd_sum_sf$shap_suit_baseline, all_dd_sum_sf$expected_distribution)
+
+ggplot(all_dd_sum_sf) + 
+  geom_point(aes(x = suitability, y = expected_distribution, col = completeness)) + 
+  geom_abline(col = 'red') + 
+  theme_bw() + 
+  xlab('predicted suitability') + 
+  ylab('expected suitability') + 
+  theme(panel.grid = element_blank(), 
+        panel.border = element_blank(), 
+        panel.background = element_blank(), 
+        axis.line = element_line(), 
+        axis.ticks = element_blank())
+
+round(summary(all_dd_sum_sf$SD_expected_threat_continuous), 2)
+round(summary(all_dd_sum_sf$SD_expected_sum_presence_negative_con), 2)
+round(summary(all_dd_sum_sf$SD_expected_sum_presence_negative_habitat), 2)
+
+ggplot(all_dd_sum_sf) + 
+  geom_point(aes(x = SD_expected_threat_continuous, y = shap_suit_baseline))
+
+### make plot of gridded values
+rank_order_catchments <- all_dd_sum_sf %>% 
+  st_drop_geometry() %>% 
+  select(TEILEZGNR, dist_properties) %>% 
+  na.omit() %>% 
+  mutate_at(dist_properties, order)
+
+rank_order_catchments$TEILEZGNR <- factor(rank_order_catchments$TEILEZGNR, 
+                                          levels = rank_order_catchments$TEILEZGNR[order(rank_order_catchments$suitability)])
+
+rank_order_catchments <- rank_order_catchments %>% arrange(TEILEZGNR) %>% 
+  pivot_longer(cols = dist_properties)
+
+# plot rank ordering of catchments
+ggplot(rank_order_catchments) + 
+  geom_raster(aes(x = TEILEZGNR, y = name, fill = value)) + 
+  theme_bw() + 
+  theme(legend.position = 'none', 
+        axis.text.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        panel.border = element_blank(), 
+        panel.background = element_blank())
+
+
+# combine larger scale catchments with data and aggregate for simpler ranking visualisation
+subcatchments <- st_read(subcatchment_file, layer = "Teileinzugsgebiet")
+subcatchments <- subcatchments %>% st_transform(., crs = st_crs(all_dd_sum_sf))
+subcatchments <- subcatchments %>%
+  select(TEZGNR1000) %>% 
+  group_by(TEZGNR1000) %>% 
+  summarize(Shape = st_union(Shape))
+
+# aggregate catchment properties
+TEZGNR1000_summary <- st_join(subcatchments, all_dd_sum_sf) %>% 
+  group_by(TEZGNR1000) %>% 
+  summarise_at(dist_properties, mean, na.rm = T) %>% 
+  na.omit()
+
+# rank order the larger catchments
+rank_order_large_catchments <- TEZGNR1000_summary %>% 
+  st_drop_geometry() %>% 
+  select(TEZGNR1000, dist_properties) %>% 
+  na.omit() %>% 
+  mutate_at(dist_properties, order)
+
+# order catchments 
+rank_order_large_catchments$TEZGNR1000 <- factor(rank_order_large_catchments$TEZGNR1000, 
+                                                levels = rank_order_large_catchments$TEZGNR1000[order(rank_order_large_catchments$suitability)])
+
+# make longer for plotting
+rank_order_large_catchments <- rank_order_large_catchments %>% 
+  arrange(TEZGNR1000) %>% 
+  pivot_longer(cols = dist_properties)
+
+# plot rank ordering of catchments
+ggplot(rank_order_large_catchments) + 
+  geom_raster(aes(x = TEZGNR1000, y = name, fill = value)) + 
+  theme_bw() + 
+  theme(legend.position = 'none', 
+        axis.text.x = element_blank(), 
+        axis.ticks = element_blank(), 
+        panel.border = element_blank(), 
+        panel.background = element_blank())
+
+# example spatial pattern in these variables
+TEZGNR1000_summary$completeness[TEZGNR1000_summary$completeness>1] <- 1
+tm_shape(TEZGNR1000_summary) + 
+  tm_fill(col = c('suitability', 
+                  'expected_distribution', 
+                  'completeness'), 
+          style = 'cont')
+
+
+
+tm_shape()
+
+sub_dd %>% 
+  st_drop_geometry() %>% 
+  select(TEZGNR1000, dist_properties) %>% 
+  aggregate(., 'TEZGNR1000', FUN = mean, na.rm = T)
+  
+n_distinct(sub_dd$TEZGNR1000)
+# join in broad categories of rivers
+cor(all_dd_sum_sf[,dist_properties] %>% st_drop_geometry() %>%  na.omit())
+
 
 
 # SUM OF SUITABILITIES

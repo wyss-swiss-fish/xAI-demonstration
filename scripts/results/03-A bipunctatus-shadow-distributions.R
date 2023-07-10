@@ -90,18 +90,18 @@ vars_renamed = c('discharge',
 vars_renamed <- cbind(vars_shap, vars_renamed)
 
 
-#### 4. Estimate variable importance and effect distribution ----
+#### 4. Estimate variable importance and variable effect distribution ----
 
-# read in presence absence data
+# read in shapley values for presence absence models
 shap_rast_pa_i <- rast(paste0(shap_dirs, "/shap_raster_pa.TIF"))
 
-# clean names
+# clean variable names
 names(shap_rast_pa_i) <- vars_renamed[which(vars_renamed[,'vars_shap']%in%names(shap_rast_pa_i)), 'vars_renamed']
 
-# remove non_na
+# remove non_na catchments
 shap_rast_pa_i <- shap_rast_pa_i[[which(global(shap_rast_pa_i, fun="notNA")!=0)]]
 
-# varible importance across entire landscape
+# calculate average variable importance across the entire landscape from shapley values
 all_shap_df <- data.frame(shap_rast_pa_i)
 var_imp <- sapply(all_shap_df, function(x) mean(abs(x), na.rm = T))
 var_imp_raw  <- sapply(all_shap_df, function(x) mean(x, na.rm = T))
@@ -154,10 +154,10 @@ dev.off()
 
 #### 5. Map spatial distribution of shapley values for Alburnoides bipunctatus ---- 
 
-# read in presence absence data
+# read in shapley values for presence-absence models
 shap_rast_pa_i <- rast(paste0(shap_dirs, "/shap_raster_pa.TIF"))
 
-# clean names
+# clean variable names
 names(shap_rast_pa_i) <- vars_renamed[which(vars_renamed[,'vars_shap']%in%names(shap_rast_pa_i)), 'vars_renamed']
 
 # remove non_na
@@ -171,17 +171,21 @@ suit_i <- rast(sp_raster_suit_pa)
 presence <- rast(sp_raster_pres_pa[1])
 suit_i <- resample(suit_i, presence)
 
+# convert non-predicted locations to NAs
 pres_suit <- suit_i
 pres_suit[is.na(presence)] <- NA
 names(pres_suit) <- 'presence'
 
+# convert non-predicted locations to NAs
 abs_suit <- suit_i
 abs_suit[!is.na(presence)] <- NA
 names(abs_suit) <- 'absence'
 
+# combine presences and absences
 pa_map <- c(pres_suit, abs_suit)
 pa_map <- trim(pa_map)
 
+# make plot of locations predicted as present
 occ_plot <- 
   tm_shape(ch) + 
   tm_borders(col = 'black') + 
@@ -210,8 +214,7 @@ occ_plot <-
                position = c('center', 'bottom'))
   
   
-
-# plot overall 
+# plot shapley values as a faceted tmap  
 shap_rast_plot <- shap_rast_pa_i
 names(shap_rast_plot) <- paste0('(', letters[3:(2+nlyr(shap_rast_plot))], ') ', names(shap_rast_plot))
 shap_plot <- tm_shape(shap_rast_plot) +
@@ -258,7 +261,7 @@ print(tm_shape(pa_map[[1]]) +
 dev.off()
 
 
-# make pdf
+# make pdf of shapley distributions
 pdf(paste0(fig_dir, '/spatial_shap_example/shap_', sp_list[1], '.pdf'), width = 8, height = 6)
 print(shap_plot) 
 dev.off()
@@ -268,7 +271,7 @@ png(paste0(fig_dir, '/spatial_shap_example/shap_', sp_list[1], '.png'), width = 
 print(shap_plot) 
 dev.off()
 
-
+# pdf of legend
 pdf(paste0(fig_dir, '/spatial_shap_example/shap_legend_', sp_list[1], '.pdf'), width = 2, height = 2)
 print(tm_shape(shap_rast_plot[[1]]) +
   tm_raster(
@@ -333,8 +336,6 @@ pdf(paste0(fig_dir, 'spatial_shap_example/response-curves/', var_i, '.pdf'), hei
   theme_bw() +
   theme(panel.grid = element_blank(),
         aspect.ratio = 0.5, 
-        #axis.text.x = element_blank(), 
-        #axis.ticks.x = element_blank(), 
         axis.title = element_blank(), 
         strip.background = element_blank(),
         strip.text = element_blank(), 
@@ -392,10 +393,12 @@ natural_niche_factors = c('ecoF_discharge_max_log10_SHAP',
                           'ecoF_flow_velocity_mean_SHAP', 
                           'local_dis2lake_SHAP', 
                           'ecoF_slope_min_log10_SHAP')
+# define habitat 'threat' factors
 habitat_factors = c('local_wet_SHAP', 
                     'local_flood_SHAP', 
                     'local_imd_log10_ele_residual_SHAP', 
                     'ecoF_eco_mean_ele_residual_SHAP')
+# define connectivity 'threat' factors
 conn_factors = 'local_asym_cl_log10_SHAP'
 
 ### Apply function that estimates the properties of the shadow distributions
@@ -467,7 +470,7 @@ dev.off()
 ###
 # find the catchments where natural factors act positively and identify the factor
 # with the highest positive effect
-which_pos <- st_drop_geometry(sp_shap)[natural_niche_factors]
+which_pos <- st_drop_geometry(sp_shap)[,which(names(sp_shap) %in% natural_niche_factors)]
 which_pos[which_pos<0] <- NA
 sp_shap$which_pos <- unlist(apply(which_pos, 1, function(x) ifelse(length(which.max(x))==0, NA, names(which_pos)[which.max(x)])))
 
@@ -479,7 +482,7 @@ sp_shap_which_pos <- sp_shap %>%
 ###
 # find the catchments where natural factors act negatively, and identify the facto
 # with the lowest negative effect
-which_neg <- st_drop_geometry(sp_shap)[natural_niche_factors]
+which_neg <- st_drop_geometry(sp_shap)[,which(names(sp_shap) %in% natural_niche_factors)]
 which_neg[which_neg>0] <- NA
 sp_shap$which_neg <- unlist(apply(which_neg, 1, function(x) ifelse(length(which.max(x))==0, NA, names(which_neg)[which.min(x)])))
 

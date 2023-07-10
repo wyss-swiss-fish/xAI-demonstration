@@ -1,4 +1,4 @@
-### Aim of script is to generate maps of SHAPLEY values for focal species ----
+#### Aim of script is to generate series of figures summarise SMDs and shapley values for each species ----
 
 # This script generates a series of figures for exploration including:
 # - maps of species shapley values for presence-only and presence-absence SDMs (although we further consider only PA models)
@@ -166,7 +166,7 @@ for (i in 1:length(sp_list)) {
   }
 }
 
-#### 5. Create single pdf spatial maps of shapely values across each species ----
+#### 5. Make single pdf spatial maps of shapely values across each species ----
 
 dir.create(paste0(fig_dir, '/all_sp_plots/'), recursive = T)
 
@@ -274,7 +274,7 @@ for(i in 1:length(sp_list)){
 dev.off()
 
 
-#### 6. Create shapley based response curves for interpretations ----
+#### 6. Make shapley based response curves for interpretations ----
 
 pdf(paste0(fig_dir, "all_sp_plots/shap_rc_all_po", ".pdf"), width = 14, height = 14)
 for (i in 1:length(sp_list)) {

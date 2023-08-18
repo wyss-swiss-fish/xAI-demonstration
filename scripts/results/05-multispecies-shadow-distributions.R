@@ -22,7 +22,7 @@ RUN <- "ubelix_SDM_RF_MARCH_v6"
 
 # get species of interest
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
-sp_list <- readRDS('figures/ubelix_SDM_RF_MARCH_v6/evaluations/subset_sp.RDS')
+sp_list <- readRDS(paste0(fig_dir, 'evaluations/subset_sp.RDS'))
 
 # get directories for focal shapley objects
 shap_dirs <- list.files(paste0("shapley-run/", RUN),
@@ -209,6 +209,10 @@ lapply(all_shadow, function(x) {
 
 # this creates additional columns on our spatial objects that summarise the expected, observed and shadow distributions
 
+all_dd_method <- list()
+
+for(method in 1:4){
+
 all_dd <- lapply(1:length(all_shadow), function(i){
   
   ####
@@ -255,13 +259,50 @@ all_dd <- lapply(1:length(all_shadow), function(i){
     
   ## EXPECTED DISTRIBUTION
   # get positive shapley values for threats (i.e., where habitat are positive contributions) 
-  pos_threat_shaps <- rowSums(abs(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% c(hab_factors, con_factors)])), na.rm = T)
-
+  
+  # different methods for estimating corrected values
+  # method 1: convert to absolute value
+  # method 2: convert to the mean value where the shapley values are postive
+  # method 3: convert to the maximum value where the shapley values are positive
+  # method 4: convert to 0 (remove threat but not any positive benefit of removal)
+  
+  threat_shaps <- st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% c(hab_factors, con_factors)])
+  threat_shaps[threat_shaps<0] <- NA
+  
+  if(method == 1){
+  # method 1
+    corrected_threat_shaps <- rowSums(abs(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% c(hab_factors, con_factors)])), na.rm = T)
+  }
+  
+  if(method == 2){
+  # method 2 
+    corrected_threat_shaps <- rowSums(apply(threat_shaps, 2, function(x){
+    x[is.na(x)] <- mean(x, na.rm = T)
+    return(x)}))
+  }
+  
+  if(method == 3){
+  # method 3
+    corrected_threat_shaps <- rowSums(apply(threat_shaps, 2, function(x){
+    x[is.na(x)] <- quantile(x, 0.95, na.rm = T)
+    return(x)}))
+  }
+  
+  if(method == 4){
+  # method 4
+    corrected_threat_shaps <- rowSums(apply(threat_shaps, 2, function(x){
+    x[is.na(x)] <- 0
+    return(x)}))
+  }
+  
   # add back in positive effects of threats to get the expected distribution
-  shap_sp_i$expected_distribution <- shap_sp_i$nn_sum + pos_threat_shaps + baseline_value
+  shap_sp_i$expected_distribution <- shap_sp_i$nn_sum + corrected_threat_shaps + baseline_value
   
   # mask the expected distribution 
   shap_sp_i$expected_distribution <- ifelse(shap_sp_i$nn_sum < 0, NA, shap_sp_i$expected_distribution)
+  
+  # convert to 1 if > 
+  shap_sp_i$expected_distribution[shap_sp_i$expected_distribution > 1] <- 1
   
   ## OBSERVED DISTRIBUTION
   # take the habitat suitability predictions within the natural niche area
@@ -324,6 +365,9 @@ all_dd <- lapply(1:length(all_shadow), function(i){
 # get names
 names(all_dd) <- sp_list
 
+all_dd_method[[method]] <- all_dd
+
+}
 
 #### 7. Plot each distribution type across all species ----
 
@@ -334,15 +378,21 @@ river_lake_tm <- tm_shape(river_intersect_lakes) +
   tm_shape(lakes) +
   tm_polygons(border.col = "black", col = "white", legend.show = F)
 
+for(method in 1:length(all_dd_method)){
+
 # create output directory
-dir.create(paste0(fig_dir, '/shadow_dist_summaries/shadow_distribution_maps/'))
+shad_plot_dir <- paste0(fig_dir, '/shadow_dist_summaries/shadow_distribution_maps', '_method_', method, '/')
+dir.create(shad_plot_dir)
+
+# subset to method in loop
+all_dd <- all_dd_method[[method]]
 
 # create maps across all species
 lapply(1:length(all_dd), function(x){
   
   sp_dd <- all_dd[[x]]
   
-  pdf(paste0(fig_dir, '/shadow_dist_summaries/shadow_distribution_maps/', unique(sp_dd$species_name), '.pdf'),
+  pdf(paste0(shad_plot_dir, unique(sp_dd$species_name), '.pdf'),
       width = 10, height = 15,
       bg = "transparent"
   )
@@ -436,12 +486,18 @@ lapply(1:length(all_dd), function(x){
   
   })
 
+}
+
 
 
 #### 8. Aggregate together shadow distribution values ----
 
+lapply(1:4, function(x) dir.create(paste0(fig_dir, '/dark_diversity/', 'method_', x), recursive = T))
+
+for(method in 1:length(all_dd_method)){
+  
 # bind together all outputs
-all_dd_bind <- bind_rows(all_dd)
+all_dd_bind <- bind_rows(all_dd_method[[method]])
 
 # remove areas from distributions where they are not naturally predicted to occur
 all_dd_bind <- all_dd_bind %>% filter(!is.na(expected_distribution))
@@ -535,10 +591,10 @@ range <- signif(seq(min(all_dd_sum[,c('observed_distribution_mean', 'expected_di
                     max(all_dd_sum[,c('observed_distribution_mean', 'expected_distribution_mean')], na.rm = T), 
                     length.out = 4), 2)
 
-png(paste0(fig_dir, '/dark_diversity/all_maps.png'),
+png(paste0(fig_dir, '/dark_diversity/', 'method_', method, '/', 'all_maps_method_', method, '.png'),
     width = 4000, height = 2250, res = 300,
     bg = "transparent")
-tmap_arrange(map_values('observed_distribution_mean', breaks = range, palette = 'Spectral', legend.reverse = T),
+print(tmap_arrange(map_values('observed_distribution_mean', breaks = range, palette = 'Spectral', legend.reverse = T),
              map_values('expected_distribution_mean', breaks = range, palette = 'Spectral', legend.reverse = T),
              map_values('expected_distribution_mean', breaks = range, palette = 'Spectral', legend.reverse = T),
              
@@ -550,84 +606,103 @@ tmap_arrange(map_values('observed_distribution_mean', breaks = range, palette = 
              map_values('SD_expected_sum_presence_negative_habitat_mean', breaks = round(seq(0, 4, length.out = 4), 2), palette = '-Spectral', legend.reverse = T), 
              map_values('SD_expected_sum_presence_negative_habitat_mean', breaks = round(seq(0, 4, length.out = 4), 2), palette = '-Spectral', legend.reverse = T),
             
-             nrow = 3, ncol = 3)
+             nrow = 3, ncol = 3))
 dev.off()
 
 
 #### 9. Data summaries of each shadow distribution property ----
 
+
+sink(paste0(fig_dir, '/dark_diversity/', 'method_', method, '/', 'summaries_method_', method, '.txt'))
+
+print('MEAN SUITABILITY OF THE OBSERVED DISTRIBTUION')
 ## Mean suitability
 # Summary of mean observed distribution
-round(summary(all_dd_sum_sf$observed_distribution_mean), 2)
+print(round(summary(all_dd_sum_sf$observed_distribution_mean), 2))
 mean_suit <- mean(all_dd_sum_sf$observed_distribution_mean, na.rm = T)
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 # 0.21    0.47    0.56    0.56    0.66    0.96 
 
+
+print('MEAN SUITABILITY OF THE EXPECTED DISTRIBTUION')
 # Summary of mean expected distribution
-round(summary(all_dd_sum_sf$expected_distribution_mean), 2)
+print(round(summary(all_dd_sum_sf$expected_distribution_mean), 2))
 mean_exp <- mean(all_dd_sum_sf$expected_distribution_mean, na.rm = T)
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 # 0.35    0.54    0.62    0.62    0.70    0.99 
 
+print('MEAN PERCENTAGE REDUCTION IN SUITABILITY BETWEEN OBSERVED AND EXPECTED')
 # Mean reduction in suitability, calculate directly from species-metric
-1 - mean(all_dd_sum_sf$SD_OratioE_mean) # 0.1078135% reduction in suitability 
-t.test(all_dd_sum_sf$observed_distribution_mean, all_dd_sum_sf$expected_distribution_mean)
+print(1 - mean(all_dd_sum_sf$SD_OratioE_mean)) # 0.1078135% reduction in suitability 
+
+print('T-TEST OF REDUCTION IN SUITABILITIES BETWEEN OBSERVED AND EXPECTED')
+print(t.test(all_dd_sum_sf$observed_distribution_mean, all_dd_sum_sf$expected_distribution_mean))
 
 
+print('MINIMUM SUITABILITY OF OBSERVED DISTRIBUTION WITHIN SET OF SPECIES')
 ## Minimum suitability
 # Summary of minimum observed distribution
-round(summary(all_dd_sum_sf$observed_distribution_min), 2)
+print(round(summary(all_dd_sum_sf$observed_distribution_min), 2))
 mean_suit <- mean(all_dd_sum_sf$observed_distribution_min,na.rm = T)
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 # 0.13    0.28    0.34    0.35    0.42    0.74 
 
+print('MINIMUM SUITABILITY OF EXPECTED DISTRIBUTION WITHIN SET OF SPECIES')
 # Summary of minimum expected distribution
-round(summary(all_dd_sum_sf$expected_distribution_min), 2)
+print(round(summary(all_dd_sum_sf$expected_distribution_min), 2))
 mean_exp <- mean(mean(all_dd_sum_sf$expected_distribution_min,na.rm = T))
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 # 0.30    0.40    0.45    0.45    0.50    0.74 
 
-
+print('PERCENTAGE DIFFERENCE BETWEEN MINIMUM EXPECTED AND OBSERVED SUITABILITY')
 ## Percentage difference between observed and expected
 # Mean percentage reduction in suitability comparing observed to expected 
-1-mean(all_dd_sum_sf$SD_OratioE_min) # 0.2911247% reduction in suitability 
-t.test(all_dd_sum_sf$observed_distribution_min, all_dd_sum_sf$expected_distribution_min)
+print(1-mean(all_dd_sum_sf$SD_OratioE_min)) # 0.2911247% reduction in suitability 
+print(t.test(all_dd_sum_sf$observed_distribution_min, all_dd_sum_sf$expected_distribution_min))
 
+print('SUMMARY OF MEAN ACROSS SPECIES PERCENTAGE DIFFERENCE BETWEEN OBSERVED AND EXPECTED')
 # Summary of mean percentage difference between observed and expected suitability
-summary(all_dd_sum_sf$SD_OpercentOfE_mean)
+print(summary(all_dd_sum_sf$SD_OpercentOfE_mean))
 # Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
 # -0.53072 -0.13891 -0.08651 -0.10781 -0.05085  0.00000 
 
+print('SUMMARY OF MINIMUM ACROSS SPECIES PERCENTAGE DIFFERENCE BETWEEN OBSERVED AND EXPECTED')
 # Summary of minmum percentage difference between observed and expected suitability
-summary(all_dd_sum_sf$SD_OpercentOfE_min)
+print(summary(all_dd_sum_sf$SD_OpercentOfE_min))
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
 # -0.7390 -0.4778 -0.2367 -0.2911 -0.1201  0.0000 
 
-
+print('PERCENTAGE DIFFERENCE IN WORST 10% OF CATCHMENTS')
 ## Percentage difference in worst 10% of catchments 
 # What is the mean reduction in suitability in the lowest 10th quantile 
-mean(all_dd_sum_sf$SD_OpercentOfE_mean[all_dd_sum_sf$SD_OpercentOfE_mean<quantile(all_dd_sum_sf$SD_OpercentOfE_mean, 0.1)])
-quantile(all_dd_sum_sf$SD_OpercentOfE_min, 0.1)
+print(mean(all_dd_sum_sf$SD_OpercentOfE_mean[all_dd_sum_sf$SD_OpercentOfE_mean<quantile(all_dd_sum_sf$SD_OpercentOfE_mean, 0.1)]))
 
 
+print('LARGEST REDUCTION IN HABITAT SUITABILITY (MINIMUM OF MEAN REDUCTION)')
 ## Maximum reduction in habitat suitability
 # across-catchment minimum of mean reduction
-min(all_dd_sum_sf$SD_OratioE_mean)
+print(min(all_dd_sum_sf$SD_OratioE_mean))
+print('LARGEST REDUCTION IN HABITAT SUITABILITY (MINIMUM OF MINIMUM REDUCTION)')
 # across-catchment minimum of minimum reduction
-min(all_dd_sum_sf$SD_OratioE_min)
+print(min(all_dd_sum_sf$SD_OratioE_min))
 
 
 ## Comparative correlations between threat numbers and percentage reductions
+print('spearmans rank between shadow distribution and threat number - mean shadow in community')
 # spearmans rank between shadow distribution and threat number
-cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_con_mean, all_dd_sum_sf$SD_OratioE_mean, method = 'spearman')
-cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_habitat_mean, all_dd_sum_sf$SD_OratioE_mean, method = 'spearman')
+print(cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_con_mean, all_dd_sum_sf$SD_OratioE_mean, method = 'spearman'))
+print(cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_habitat_mean, all_dd_sum_sf$SD_OratioE_mean, method = 'spearman'))
 
 # spearmans rank between shadow distribution and threat number
-cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_con_mean, all_dd_sum_sf$SD_OratioE_min, method = 'spearman')
-cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_habitat_mean, all_dd_sum_sf$SD_OratioE_min, method = 'spearman')
+print('spearmans rank between shadow distribution and threat number - minimum shadow in community')
+print(cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_con_mean, all_dd_sum_sf$SD_OratioE_min, method = 'spearman'))
+print(cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_habitat_mean, all_dd_sum_sf$SD_OratioE_min, method = 'spearman'))
+
+sink()
 
 
-png(paste0(fig_dir, '/dark_diversity/biplot_threats.png'),
+
+png(paste0(fig_dir, '/dark_diversity/', 'method_', method, '/biplot_threats.png'),
     width = 750, height = 1500, res = 300,
     bg = "transparent")
 grid.arrange(
@@ -669,7 +744,7 @@ grid.arrange(
 )
 dev.off()
 
-  
+}  
 
 #### 10. Summarise environmental properties catchments with strong vs. weak shadow distribution ----
 

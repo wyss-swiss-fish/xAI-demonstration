@@ -19,17 +19,17 @@ get_shapleys <- function(model,    # random forest model fitted to data
   
   # get the shapley values
   shapley <- fastshap::explain(object = model, 
-                                     feature_names = vars, 
-                                     X = X, 
-                                     newdata = new_data[vars],
-                                     pred_wrapper = pfun, 
-                                     nsim = 50)
+                               feature_names = vars, 
+                               X = X, 
+                               newdata = new_data[vars],
+                               pred_wrapper = pfun, 
+                               nsim = 1)
   
   # aggregate and clean up
   shapley <- shapley %>% data.frame %>% mutate_if(., is.numeric, .funs = round, 2)
   
   # rename shapley data
-  names(shapley) <- paste0(names(shapley), 'SHAP')
+  names(shapley) <- paste0(names(shapley), '_SHAP')
   
   # bind back with the new_data
   shapley <- cbind(new_data, shapley)

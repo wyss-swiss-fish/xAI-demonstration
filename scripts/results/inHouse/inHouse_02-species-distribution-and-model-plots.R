@@ -17,13 +17,13 @@ dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Na
 dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
 # figure directory
-fig_dir <- "figures/ubelix_SDM_RF_APRIL_V1/"
+fig_dir <- "figures/ubelix_SDM_RF_JULY_inHouse_V1/"
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_APRIL_V1"
+RUN <- "ubelix_SDM_RF_JULY_inHouse_V1"
 
 # get species of interest
-records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
+records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010_inHouse.csv'))
 sp_list <- readRDS(paste0(fig_dir, 'evaluations/subset_sp.RDS'))
 
 # get directories for focal shapley objects

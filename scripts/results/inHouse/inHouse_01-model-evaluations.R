@@ -14,7 +14,7 @@ dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Na
 dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_APRIL_V1"
+RUN <- "ubelix_SDM_RF_JULY_inHouse_V1"
 
 # figure directory
 fig_dir <- paste0("figures/", RUN, '/')
@@ -22,7 +22,7 @@ dir.create(fig_dir, recursive = T)
 dir.create(paste0(fig_dir, 'evaluations/'))
 
 # records table for species data summaries
-records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
+records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010_inHouse.csv'))
 sp_list <- unique(records_table$species_name)
 
 # get directories for response curve objects
@@ -160,7 +160,7 @@ metrics_text <- metrics_mean %>%
   do(mean_measures = (.$mcc_fn1 + .$tss_fn1 + .$auc_fn1) / 3,
      n_pa = .$pa) %>% 
   unnest() %>% 
-  filter(n_pa > 75) %>% 
+#  filter(n_pa > 75) %>% 
   arrange(threshold, desc(mean_measures)) 
 
 # here we also include Thymallus to ensure we have a more cold-affinity species for comparison
@@ -296,7 +296,7 @@ write.csv(tss_summary %>% select(name, subset_sp),
 
 #### 8. Make table based on summarising input data to models ----
 
-sdm_data <- read_csv(paste0(dd, 'sdm-pipeline/species-records-final/fish-presenceAbsence_2010.csv'))
+sdm_data <- read_csv(paste0(dd, 'sdm-pipeline/species-records-final/fish-presenceAbsence_2010_inHouse.csv'))
 sp_list <- readRDS(paste0(fig_dir, 'evaluations/subset_sp.RDS'))
 
 # summarise species level presences
@@ -371,9 +371,9 @@ write.csv(pa_dataset_summaries, file = paste0(fig_dir, 'summary_monitoring.csv')
 #### Summarise raw data ----
 
 sp_list <- readRDS(paste0(fig_dir, 'evaluations/subset_sp.RDS'))
-final_records <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/fish-presenceAbsence_2010.csv'))
+sdm_data <- read_csv(paste0(dd, 'sdm-pipeline/species-records-final/fish-presenceAbsence_2010_inHouse.csv'))
 
-final_records_sp <- final_records %>% 
+final_records_sp <- sdm_data %>% 
   filter(species_name %in% sp_list) 
 
 nrow(final_records_sp)
@@ -381,6 +381,5 @@ final_records_sp %>% filter(occ == 1) %>% nrow
 n_per_species <- final_records_sp %>% filter(occ == 1) %>% 
   group_by(species_name) %>% do(records_per_species = n_distinct(.$X, .$Y)) %>% unnest() 
 mean(n_per_species$records_per_species)
-
 n_distinct(paste0(final_records_sp$X, final_records_sp$Y))
 

@@ -1,8 +1,3 @@
-
-i <- as.numeric(commandArgs(trailingOnly = TRUE))
-print(i)
-
-
 #### 1. Load in packages data ----
 
 ## script to perform shapely analysis across multiple species
@@ -19,16 +14,15 @@ dd_env <- 'data/sdm-pipeline/env-data/'
 dd_ch  <- 'data/ch-spatial-products/' # other swiss spatial products
 
 # set sdm run location
-run_name <- paste0('ubelix_SDM_RF_MARCH_v1', '/')
-# run_dir <- paste0('D:/sdm-pipeline/sdm-run/', run_name)
+run_name <- paste0(RUN_NAME, '/')
 run_dir  <- paste0('sdm-run/', run_name)
 
 # define directory for all outputs
-shap_dir <- paste0('shapley-run/', run_name)
+shap_dir <- paste0('shapley-run/', RUN_NAME, '_', RUN_NAME_APPEND)
 dir.create(shap_dir, recursive = T)
 
 # get the records list to determine what kind of model was fitted in the same way as it is run on UBELIX
-record_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
+record_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/', RECORDS_TABLE))
 record_table <- record_table %>% filter(species_name %in% unique(record_table$species_name)[i])
 
 # get species name
@@ -238,7 +232,7 @@ if ("presence_only" %in% fitting) {
      # predictive function
      pred_wrapper = pfun, 
      # number of replicates
-     nsim = 1000
+     nsim = N_SIMS
      
    )
    
@@ -265,7 +259,7 @@ if ("presence_only" %in% fitting) {
  
  sp_shapley_po$model_type = 'PO'
  sp_shapley_po$species_name = sp_name
- sp_shapley_po$nrep = 1000
+ sp_shapley_po$nrep = N_SIMS
 
  saveRDS(sp_shapley_po, paste0(save_dir, "shapley_rf_po.RDS"))
  
@@ -351,7 +345,7 @@ if ("presence_absence" %in% fitting) {
      # predictive function
      pred_wrapper = pfun, 
      # number of replicates
-     nsim = 1000
+     nsim = N_SIMS
      
      )
    
@@ -370,7 +364,7 @@ if ("presence_absence" %in% fitting) {
  
  sp_shapley_pa$model_type = 'PA'
  sp_shapley_pa$species_name = sp_name
- sp_shapley_pa$nrep = 1000
+ sp_shapley_pa$nrep = N_SIMS
  
  saveRDS(sp_shapley_pa, paste0(save_dir, "shapley_rf_pa.RDS"))
  

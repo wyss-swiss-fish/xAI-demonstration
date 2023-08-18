@@ -6,8 +6,8 @@ library(tmap)
 library(randomForest)
 
 # data import locations
-user    = 'cw21p621'
-dd      = paste0('C:/Users/', user, '/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/')
+dd <- 'C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/'
+dd_env <- 'C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/sdm-pipeline/env-data/'
 
 # BASE INPUTS
 ## catchment areas of switzerland

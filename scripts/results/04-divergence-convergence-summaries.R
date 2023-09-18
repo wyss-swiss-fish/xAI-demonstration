@@ -21,12 +21,13 @@ dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Na
 dd_ch  <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
 # figure directory
-fig_dir <- "figures/ubelix_SDM_RF_MARCH_v6/"
+fig_dir <- "figures/ubelix_SDM_RF_APRIL_V1_02/"
 contrast_dir <- paste0(fig_dir, 'constrast_species_examples/')
 dir.create(contrast_dir, recursive = T)
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_MARCH_v6"
+RUN <- "ubelix_SDM_RF_APRIL_V1_02"
+RUN_SDM <- "ubelix_SDM_RF_APRIL_V1"
 
 # get species of interest
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
@@ -41,7 +42,7 @@ shap_po <- paste0(shap_dirs, "/shapley_rf_po.RDS")
 shap_pa <- paste0(shap_dirs, "/shapley_rf_pa.RDS")
 
 # get directories for response curve objects
-sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN), full.names = T)
+sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN_SDM), full.names = T)
 sdm_dirs <- sdm_dirs[grepl(paste0(sp_list, collapse = "|"), sdm_dirs)]
 
 # response curve paths
@@ -335,10 +336,6 @@ tm_shape(shap_rast_CouDiv1[CouDiv_shap]) +
             legend.show = F, 
             midpoint = 0,
             breaks = signif(seq(min(shap_rast_CouDiv1[CouDiv_shap][], na.rm = T), max(shap_rast_CouDiv1[CouDiv_shap][], na.rm = T), length.out = 4),1)) + 
-  tm_shape(river_intersect_lakes) + 
-  tm_lines(legend.show = F, col = 'gray75') + 
-  tm_shape(lakes) +
-  tm_borders(col = "gray75", lwd = 0.01) + 
   tm_layout(bg.color = "transparent", 
             frame = F)
 dev.off()
@@ -354,10 +351,6 @@ tm_shape(shap_rast_CouDiv2[CouDiv_shap]) +
             midpoint = 0,
             breaks = signif(seq(min(shap_rast_CouDiv2[CouDiv_shap][], na.rm = T), max(shap_rast_CouDiv2[CouDiv_shap][], na.rm = T), length.out = 4),1)
   ) + 
-  tm_shape(river_intersect_lakes) + 
-  tm_lines(legend.show = F, col = 'gray75') + 
-  tm_shape(lakes) +
-  tm_borders(col = "gray75", lwd = 0.01) + 
   tm_layout(bg.color = "transparent", 
             frame = F)
 dev.off()
@@ -395,10 +388,6 @@ tm_shape(shap_mean_CouDiv12) +
             breaks = signif(seq(min(shap_mean_CouDiv12[], na.rm = T), max(shap_mean_CouDiv12[], na.rm = T), length.out = 4),1)
             #breaks = c(-0.2, -0.1, 0, 0.1, 0.2)
   ) + 
-  tm_shape(river_intersect_lakes) + 
-  tm_lines(legend.show = F, col = 'gray75') + 
-  tm_shape(lakes) +
-  tm_borders(col = "gray75", lwd = 0.01) + 
   tm_layout(bg.color = "transparent", 
             frame = F)
 dev.off()
@@ -416,10 +405,6 @@ tm_shape(shap_sd_CouDiv12) +
             breaks = signif(seq(min(shap_sd_CouDiv12[], na.rm = T), max(shap_sd_CouDiv12[], na.rm = T), length.out = 4),1)
             #breaks = c(0, 0.1, 0.2, 0.25)
   ) + 
-  tm_shape(river_intersect_lakes) + 
-  tm_lines(legend.show = F, col = 'gray75') + 
-  tm_shape(lakes) +
-  tm_borders(col = "gray75", lwd = 0.01) + 
   tm_layout(bg.color = "transparent", 
             frame = F)
 dev.off()
@@ -434,10 +419,6 @@ tm_shape(env_data[CouDiv_var]) +
             legend.show = T, 
             midpoint = 0, 
             breaks = signif(seq(min(env_data[CouDiv_var][], na.rm = T), max(env_data[CouDiv_var][], na.rm = T), length.out = 4),1)) + 
-  tm_shape(river_intersect_lakes) + 
-  tm_lines(legend.show = F, col = 'gray75') + 
-  tm_shape(lakes) +
-  tm_borders(col = "gray75", lwd = 0.01) + 
   tm_layout(bg.color = "transparent", 
             frame = F)
 dev.off()
@@ -972,7 +953,7 @@ shapley_catchment_summary <- shapley_catchment_summary %>% filter(vars_renamed !
 # check directions of effects
 pos <- '#528F70'
 neg <- '#FF8000'
-direction <- rev(c(pos, pos, neg, neg, neg, neg, pos, neg, pos, pos))
+direction <- rev(c(pos, neg, pos, neg, neg, neg, pos, pos, neg, pos))
 
 # Set up colours for direction plot
 shapley_catchment_summary <- shapley_catchment_summary %>% 
@@ -1162,7 +1143,7 @@ vars_renamed = c('discharge',
                  'temperature min', 
                  'connectivity', 
                  'distance to lake', 
-                 'ecomorphology', 
+                 'morph. mod.', 
                  'urbanisation',
                  'wetland', 
                  'floodplains')

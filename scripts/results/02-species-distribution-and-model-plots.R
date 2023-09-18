@@ -17,10 +17,11 @@ dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Na
 dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
 # figure directory
-fig_dir <- "figures/ubelix_SDM_RF_APRIL_V1/"
+fig_dir <- "figures/ubelix_SDM_RF_APRIL_V1_02/"
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_APRIL_V1"
+RUN <- "ubelix_SDM_RF_APRIL_V1_02"
+RUN_SDM <- "ubelix_SDM_RF_APRIL_V1"
 
 # get species of interest
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
@@ -37,7 +38,7 @@ shap_po <- paste0(shap_dirs, "/shapley_rf_po.RDS")
 shap_pa <- paste0(shap_dirs, "/shapley_rf_pa.RDS")
 
 # get directories for response curve objects
-sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN), full.names = T)
+sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN_SDM), full.names = T)
 sdm_dirs <- sdm_dirs[grepl(paste0(sp_list, collapse = "|"), sdm_dirs)]
 
 # response curve paths
@@ -491,9 +492,6 @@ threshold_poly <-lapply(sp_list, function(x){
   return(new_rast)})
 threshold_poly <- rast(threshold_poly)
 
-# define if the catchment is occupied based on mean model predictions
-sp_shap$present <- sp_shap$suitability >= threshold
-table(sp_shap$present)
 
 pdf(paste0(fig_dir, 'all_sp_plots/allsp_suitability.pdf'), width = 12, height = 8)
 tm_shape(sp_rast) + 

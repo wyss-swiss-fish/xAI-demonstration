@@ -15,10 +15,11 @@ dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Na
 dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
 # figure directory
-fig_dir <- "figures/ubelix_SDM_RF_MARCH_v6/"
+fig_dir <- "figures/ubelix_SDM_RF_APRIL_V1_02/"
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_MARCH_v6"
+RUN <- "ubelix_SDM_RF_APRIL_V1_02"
+RUN_SDM <- "ubelix_SDM_RF_APRIL_V1"
 
 # get species of interest
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
@@ -35,7 +36,7 @@ shap_po <- paste0(shap_dirs, "/shapley_rf_po.RDS")
 shap_pa <- paste0(shap_dirs, "/shapley_rf_pa.RDS")
 
 # get directories for response curve objects
-sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN), full.names = T)
+sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN_SDM), full.names = T)
 sdm_dirs <- sdm_dirs[grepl(paste0(sp_list, collapse = "|"), sdm_dirs)]
 
 # response curve paths
@@ -78,8 +79,8 @@ vars_shap <- paste0(vars, "_SHAP")
 vars_renamed = c('discharge', 
                  'slope', 
                  'flow velocity', 
-                 'temperature', 
-                 'temperature', 
+                 'temperature max', 
+                 'temperature min', 
                  'connectivity', 
                  'distance to lake', 
                  'ecomorphology', 
@@ -110,7 +111,9 @@ var_imp$var_names <- factor(var_imp$var_names, levels = var_imp$var_names[order(
 
 print(tmaptools::get_brewer_pal("YlOrRd", n = 7))
 
-pdf(paste0(fig_dir, '/spatial_shap_example/variable_importance', sp_list[1], '.pdf'), width = 4, height = 4)
+dir.create(paste0(fig_dir, '/spatial_shap_example/'), recursive = T)
+
+pdf(paste0(fig_dir, '/spatial_shap_example/variable_importance_', sp_list[1], '.pdf'), width = 4, height = 4)
 ggplot(data = var_imp) +
   geom_bar(aes(x = var_imp, y = var_names, fill = var_imp), stat = 'identity') + 
   theme_minimal() + 
@@ -131,7 +134,8 @@ all_shap_long$name <- gsub('\\.', ' ', all_shap_long$name)
 all_shap_long <- left_join(all_shap_long, var_imp, by = c('name' = 'var_names'))
 all_shap_long$name <- factor(all_shap_long$name, levels = levels(var_imp$var_names))
 
-pdf(paste0(fig_dir, '/spatial_shap_example/shap_distribution', sp_list[1], '.pdf'), width = 4, height = 4)
+
+pdf(paste0(fig_dir, '/spatial_shap_example/shap_distribution_', sp_list[1], '.pdf'), width = 4, height = 4)
 ggplot(data = all_shap_long) + 
   geom_jitter(data = all_shap_long %>% group_by(name) %>% sample_n(., 5000), 
               aes(x = value, y = name, col = var_imp), pch = 19, alpha = 0.5, stroke = NA, size = 2) + 
@@ -196,9 +200,10 @@ occ_plot <-
             palette = 'YlOrRd') + 
   tm_shape(river_intersect_lakes) + 
   tm_lines(legend.show = F, 
-           col = 'gray75') + 
+           col = 'black', 
+           lwd = 0.1) + 
   tm_shape(lakes) +
-  tm_polygons(border.col = "gray75", col = "white", legend.show = F, lwd = 0.01) + 
+  tm_polygons(border.col = "black", col = "white", legend.show = F, lwd = 0.01) + 
   tm_layout(legend.outside = T,
             legend.outside.size = 0.1,
             legend.outside.position = c('bottom'), 
@@ -230,9 +235,11 @@ shap_plot <- tm_shape(shap_rast_plot) +
   tm_facets(ncol = 4, 
             free.scales.raster = T) +
   tm_shape(river_intersect_lakes) + 
-  tm_lines(legend.show = F, col = 'gray75') + 
+  tm_lines(legend.show = F, 
+           col = 'black', 
+           lwd = 0.1) + 
   tm_shape(lakes) +
-  tm_polygons(border.col = "gray75", col = "white", legend.show = F, lwd = 0.01) + 
+  tm_polygons(border.col = "black", col = "white", legend.show = F, lwd = 0.01) + 
   tm_layout(legend.outside = F, 
             legend.outside.size = 0.1,
             legend.outside.position = c('bottom'), 
@@ -243,7 +250,6 @@ shap_plot <- tm_shape(shap_rast_plot) +
             panel.label.size = 1.2)
 
 
-dir.create(paste0(fig_dir, '/spatial_shap_example/'), recursive = T)
 pdf(paste0(fig_dir, '/spatial_shap_example/presence_', sp_list[1], '.pdf'), width = 6*1.5, height = 2*1.5, 
     bg = 'transparent')
 print(occ_plot) 
@@ -368,7 +374,7 @@ summary(abs(upr_tri_shap),na.rm = T)
 sd(abs(upr_tri_shap),na.rm = T)
 
 # plot correlation matrix
-pdf(paste0(fig_dir, 'spatial_shap_example/', 'shap_correlations.pdf'), width = 6, height = 6)
+pdf(paste0(fig_dir, 'spatial_shap_example/', 'shap_correlations.pdf'), width = 7, height = 7)
 ggcorr(unique_shap_wide, 
        method = c("everything", "spearman"), 
        limits = c(-1, 1), 
@@ -390,6 +396,7 @@ source('scripts/functions/shadow_distribution.R')
 # define natural niche factors
 natural_niche_factors = c('ecoF_discharge_max_log10_SHAP', 
                           'stars_t_mn_m_c_SHAP', 
+                          'stars_t_mx_m_c_SHAP', 
                           'ecoF_flow_velocity_mean_SHAP', 
                           'local_dis2lake_SHAP', 
                           'ecoF_slope_min_log10_SHAP')
@@ -409,7 +416,7 @@ sp_shap <- shadow_distribution(sdm_input_data = sdm_dirs[1],
                                habitat_factors = habitat_factors,
                                conn_factors = conn_factors,
                                species = sp_list[1],
-                               output_folder = paste0('figures/ubelix_SDM_RF_MARCH_v6/shadow_dist_summaries/'))
+                               output_folder = paste0('figures/ubelix_SDM_RF_APRIL_V1_02/shadow_dist_summaries/'))
 
 
 # create scatter plot of shapley values against suitability classified by threat

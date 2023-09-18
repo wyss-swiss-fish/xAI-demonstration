@@ -14,7 +14,8 @@ dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Na
 dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
 # get run to mak figures for
-RUN <- "ubelix_SDM_RF_APRIL_V1"
+RUN <- "ubelix_SDM_RF_APRIL_V1_02"
+RUN_SDM <- "ubelix_SDM_RF_APRIL_V1"
 
 # figure directory
 fig_dir <- paste0("figures/", RUN, '/')
@@ -26,7 +27,7 @@ records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records
 sp_list <- unique(records_table$species_name)
 
 # get directories for response curve objects
-sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN), full.names = T)
+sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN_SDM), full.names = T)
 sdm_dirs <- sdm_dirs[grepl(paste0(sp_list, collapse = "|"), sdm_dirs)]
 
 # directories holding evaluation data 

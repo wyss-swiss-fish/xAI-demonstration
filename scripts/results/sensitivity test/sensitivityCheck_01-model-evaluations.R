@@ -13,8 +13,23 @@ dd <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature
 dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/sdm-pipeline/env-data/"
 dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
-# get run to mak figures for
-RUN <- "ubelix_SDM_RF_JULY_inHouse_V1"
+#### 2. Set up looping variables such that we can run the model evaluations over the model runs and datasubsets ----
+
+RUN_list <- c('ubelix_SDM_RF_APRIL_V1',
+              'ubelix_SDM_RF_JULY_inHouse_V2', 
+              'ubelix_SDM_RF_JULY_Kanton_subset_V1',
+              'ubelix_SDM_RF_JULY_Kanton_V1')
+
+DATA_list <- c('fish-presenceAbsence_2010.csv',
+               'fish-presenceAbsence_2010_inHouse.csv', 
+               'fish-presenceAbsence_2010_Kanton.csv', 
+               'fish-presenceAbsence_2010_Kanton_subset.csv')
+
+eval_all <- list() # set up output
+
+for(i in 1:length(RUN_list)){
+  
+RUN <- RUN_list[i]
 
 # figure directory
 fig_dir <- paste0("figures/", RUN, '/')
@@ -22,7 +37,7 @@ dir.create(fig_dir, recursive = T)
 dir.create(paste0(fig_dir, 'evaluations/'))
 
 # records table for species data summaries
-records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010_inHouse.csv'))
+records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010_focal.csv'))
 sp_list <- unique(records_table$species_name)
 
 # get directories for response curve objects
@@ -46,6 +61,10 @@ sp_eval_sub <- sp_eval %>%
   filter(evaluation_data %in% c('PA-kfold')) %>% 
   # remove binary prediction method and focus on TSS and MCC binary predictions
   filter(threshold_method != 'binary_pred')
+
+# save the model evaluation data
+eval_all[[i]] <- sp_eval_sub
+eval_all[[i]]$data_subset <- gsub('.csv', '', RUN_list[[i]])
 
 #### 3. Average model outputs over MCC thresholds and create table ----
 # MCC:
@@ -296,7 +315,7 @@ write.csv(tss_summary %>% select(name, subset_sp),
 
 #### 8. Make table based on summarising input data to models ----
 
-sdm_data <- read_csv(paste0(dd, 'sdm-pipeline/species-records-final/fish-presenceAbsence_2010_inHouse.csv'))
+sdm_data <- read_csv(paste0(dd, 'sdm-pipeline/species-records-final/', DATA_list[i]))
 sp_list <- readRDS(paste0(fig_dir, 'evaluations/subset_sp.RDS'))
 
 # summarise species level presences
@@ -323,7 +342,6 @@ sdm_data %>%
          species_name %in% sp_list) %>% 
   select(X, Y) %>% 
   n_distinct()
-
 
 sdm_data_clean_names <- sdm_data %>% 
   mutate(dataset = case_when(dataset == 'project_fiumi' ~ '2. EAWAG Projetto Fiumi', 
@@ -371,15 +389,149 @@ write.csv(pa_dataset_summaries, file = paste0(fig_dir, 'summary_monitoring.csv')
 #### Summarise raw data ----
 
 sp_list <- readRDS(paste0(fig_dir, 'evaluations/subset_sp.RDS'))
-sdm_data <- read_csv(paste0(dd, 'sdm-pipeline/species-records-final/fish-presenceAbsence_2010_inHouse.csv'))
 
 final_records_sp <- sdm_data %>% 
   filter(species_name %in% sp_list) 
 
+sink(file = paste0(fig_dir, 'summarise_data.txt'))
+print('number of observations in dataset')
 nrow(final_records_sp)
+print('number of occurrences in dataset')
 final_records_sp %>% filter(occ == 1) %>% nrow
-n_per_species <- final_records_sp %>% filter(occ == 1) %>% 
-  group_by(species_name) %>% do(records_per_species = n_distinct(.$X, .$Y)) %>% unnest() 
+# calculate mean number of records per species
+n_per_species <- final_records_sp %>% 
+  filter(occ == 1) %>% 
+  group_by(species_name) %>% 
+  do(records_per_species = n_distinct(.$X, .$Y)) %>% 
+  unnest() 
+print('average number of occurrences per species')
 mean(n_per_species$records_per_species)
+print('number of distinct locations sampled')
 n_distinct(paste0(final_records_sp$X, final_records_sp$Y))
+sink()
+
+
+}
+
+
+
+#### Get together compiled model evaluations ----
+
+# bind all the rows
+eval_all_df <- bind_rows(eval_all) %>% 
+  select(threshold_method, species_name, data_subset, fold, mcc, tss, auc)# %>% 
+# filter(threshold_method == 'tss')
+
+# estimate mean performance to compare with
+eval_means <- bind_cols(eval_all_df %>% 
+                          filter(data_subset == 'ubelix_SDM_RF_APRIL_V1', threshold_method == 'tss') %>% 
+                          group_by(threshold_method, species_name, data_subset) %>% 
+                          select(tss, auc) %>% 
+                          do(mean_tss = mean(.$tss, na.rm = T), 
+                             mean_auc = mean(.$auc, na.rm = T)) %>% 
+                          unnest(c(mean_tss, mean_auc)) %>% 
+                          select(-data_subset, -threshold_method) %>% 
+                          ungroup(), 
+                        eval_all_df %>% 
+                          filter(data_subset == 'ubelix_SDM_RF_APRIL_V1', threshold_method == 'mcc') %>% 
+                          group_by(threshold_method, species_name, data_subset) %>% 
+                          select(mcc) %>% 
+                          do(mean_mcc = mean(.$mcc, na.rm = T)) %>% 
+                          unnest(c(mean_mcc)) %>% 
+                          select(-data_subset, -threshold_method) %>% 
+                          ungroup() %>% 
+                          select(-species_name))
+
+# join in the estimation of mean values
+eval_join <- left_join(eval_all_df, eval_means)
+
+# take away the actual values from the overall mean values
+eval_join$mcc_diff <- eval_join$mcc - eval_join$mean_mcc
+eval_join$tss_diff <- eval_join$tss - eval_join$mean_tss
+eval_join$auc_diff <- eval_join$auc - eval_join$mean_auc
+
+# make longer to joint plotting
+eval_diff <- pivot_longer(eval_join, 
+                          cols = c(mcc_diff, tss_diff, auc_diff), 
+                          names_to = 'metric', 
+                          values_to = 'metric_diff') %>% 
+  # filter to only relevant comparisons based on threshold method
+  filter(threshold_method == 'mcc' & metric == 'mcc_diff' | 
+           threshold_method == 'tss' & metric == 'tss_diff' | 
+           threshold_method == 'tss' & metric == 'auc_diff') 
+
+
+# recode for convinience
+eval_diff$data_subset <- recode(eval_diff$data_subset, 
+       'ubelix_SDM_RF_APRIL_V1' = 'all data', 
+       'ubelix_SDM_RF_JULY_inHouse_V2' = 'in house', 
+       'ubelix_SDM_RF_JULY_Kanton_subset_V1' = 'remove alpine', 
+       'ubelix_SDM_RF_JULY_Kanton_V1' = 'kanton only')
+
+# recode metric names
+eval_diff$metric <- recode(eval_diff$metric, 
+                                'auc_diff' = 'AUC', 
+                                'mcc_diff' = 'MCC', 
+                                'tss_diff' = 'TSS')
+
+
+# # group, aggreagte, and compare
+# eval_diff <- eval_all_df %>% 
+#   group_by(threshold_method, species_name, data_subset, fold) %>% 
+#   select(tss, auc) %>% 
+#   do(mean_tss = mean(.$tss, na.rm = T), 
+#      mean_auc = mean(.$auc, na.rm = T)) %>% 
+#   unnest(c(mean_tss, mean_auc)) %>% 
+#   group_by(threshold_method, species_name) %>% 
+#   nest() %>% 
+#   mutate(mean_tss_diff = purrr::map(data, ~(.$mean_tss - .$mean_tss[which(.$data_subset == 'ubelix_SDM_RF_JULY_inHouse_V2')])),  # ubelix_SDM_RF_APRIL_V1
+#          mean_auc_diff = purrr::map(data, ~(.$mean_auc - .$mean_auc[which(.$data_subset == 'ubelix_SDM_RF_JULY_inHouse_V2')]))) %>% 
+#   unnest(data) %>% 
+#   unnest(c(mean_tss_diff, mean_auc_diff)) %>% 
+#   ungroup() %>% 
+#   pivot_longer(cols = c(mean_tss_diff, mean_auc_diff), names_to = 'metric', values_to = 'metric_diff')
+  
+png('figures/sensitivity-performance-data.png', width = 4000, height = 4000, res = 300)
+ggplot(data = eval_diff) + 
+  geom_boxplot(aes(x = species_name, 
+                   y = metric_diff, 
+                   group = paste0(species_name, data_subset), 
+                   col = data_subset)) + 
+  geom_hline(aes(yintercept = 0)) + 
+  facet_wrap(~metric + data_subset, scales = 'free_y', ncol = 4) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+        axis.title.x = element_blank()) + 
+  ylab('performance difference c.f. all data')
+dev.off()
+
+png('figures/sensitivity-performance-data-all.png', width = 2000, height = 1000, res = 300)
+ggplot(data = eval_diff) + 
+  geom_boxplot(aes(x = data_subset, 
+                   y = metric_diff, 
+                   group = paste0(data_subset), 
+                   col = data_subset)) + 
+  geom_hline(aes(yintercept = 0)) + 
+  facet_wrap(~metric, scales = 'free_y', ncol = 4) + 
+  ylab('performance difference') + 
+  theme_bw() +
+  theme(aspect.ratio = 1, 
+        axis.text.x = element_text(angle = 90, hjust = 1), 
+        axis.title.x = element_blank(), 
+        strip.background = element_blank(), 
+        legend.position = 'none')
+dev.off()
+
+# load broom for quicker summaries
+library(broom)
+
+# test for significant difference
+lm_auc <- lm(metric_diff ~ data_subset, data = eval_diff %>% filter(metric == 'AUC'))
+lm_mcc <- lm(metric_diff ~ data_subset, data = eval_diff %>% filter(metric == 'MCC'))
+lm_tss <- lm(metric_diff ~ data_subset, data = eval_diff %>% filter(metric == 'TSS'))
+
+tidy(lm_auc)
+tidy(lm_mcc)
+tidy(lm_tss)
+
 

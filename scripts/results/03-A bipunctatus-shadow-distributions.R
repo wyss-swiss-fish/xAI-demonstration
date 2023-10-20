@@ -373,6 +373,12 @@ median(abs(upr_tri_shap),na.rm = T)
 summary(abs(upr_tri_shap),na.rm = T)
 sd(abs(upr_tri_shap),na.rm = T)
 
+# example correlation for text beween discharge and connectivity
+cor_discharge_connectivity <- signif(cor_shap['discharge', 'connectivity'], 1)
+cor_median_abs_all <- signif(median(abs(upr_tri_shap),na.rm = T),2)
+cor_mean_sd_all <- paste0(signif(mean(abs(upr_tri_shap),na.rm = T),2),' ± ',signif(sd(abs(upr_tri_shap),na.rm = T),2))
+
+
 # plot correlation matrix
 pdf(paste0(fig_dir, 'spatial_shap_example/', 'shap_correlations.pdf'), width = 7, height = 7)
 ggcorr(unique_shap_wide, 
@@ -391,7 +397,7 @@ dev.off()
 #### 8. Estimate area of threatened natural range ----
 
 # custom function to estimate shadow distribution properties and output as a shapefile
-source('scripts/functions/shadow_distribution.R')
+source('scripts/functions/generate_SD_outputs.R')
 
 # define natural niche factors
 natural_niche_factors = c('ecoF_discharge_max_log10_SHAP', 
@@ -409,7 +415,7 @@ habitat_factors = c('local_wet_SHAP',
 conn_factors = 'local_asym_cl_log10_SHAP'
 
 ### Apply function that estimates the properties of the shadow distributions
-sp_shap <- shadow_distribution(sdm_input_data = sdm_dirs[1], 
+sp_shap <- generate_SD_outputs(sdm_input_data = sdm_dirs[1], 
                                raster_data = sp_raster_suit_pa, 
                                shap = shap_pa, 
                                natural_niche_factors = natural_niche_factors,
@@ -417,6 +423,8 @@ sp_shap <- shadow_distribution(sdm_input_data = sdm_dirs[1],
                                conn_factors = conn_factors,
                                species = sp_list[1],
                                output_folder = paste0('figures/ubelix_SDM_RF_APRIL_V1_02/shadow_dist_summaries/'))
+
+AB_shad_summary <- read.csv('figures/ubelix_SDM_RF_APRIL_V1_02/shadow_dist_summaries/Alburnoides bipunctatus.csv')
 
 
 # create scatter plot of shapley values against suitability classified by threat
@@ -460,7 +468,7 @@ threat_niche <- tm_shape(sp_shap) +
           palette = c('#E8E8E8','#06C4C4','#D1D111', '#D16111', '#F70000'), 
           title = '') +
   tm_shape(river_intersect_lakes) + 
-  tm_lines(legend.show = F, col = 'black') + 
+  tm_lines(legend.show = F, col = 'black', lwd = 0.5) + 
   tm_shape(lakes) +
   tm_polygons(border.col = "black", col = "white", legend.show = F) + 
   tm_layout(frame = F,
@@ -530,3 +538,57 @@ natural_niche_neg <- tm_shape(sp_shap_which_neg) +
 pdf(paste0(fig_dir, '/spatial_shap_example/natural_range_pos_neg.pdf'), height = 4*0.6, width = 14*0.6)
 tmap_arrange(natural_niche_pos, natural_niche_neg, ncol = 2)
 dev.off()
+
+
+
+#### 11. Plot quantitative shadow distribution for A. bipunctatus ---- 
+
+# define factor categories as global objects
+nn_factors <- c('ecoF_discharge_max_log10_SHAP',
+                'ecoF_slope_min_log10_SHAP', 
+                'stars_t_mn_m_c_SHAP', 
+                'stars_t_mx_m_c_SHAP',
+                'ecoF_flow_velocity_mean_SHAP', 
+                'local_dis2lake_SHAP')
+hab_factors <- c('local_wet_SHAP', 
+                 'local_flood_SHAP', 
+                 'local_imd_log10_ele_residual_SHAP', 
+                 'ecoF_eco_mean_ele_residual_SHAP')
+con_factors <- c('local_asym_cl_log10_SHAP')
+all_factors <- c(nn_factors, hab_factors, con_factors)
+
+source('scripts/functions/generate_quant_SD.R')
+method = 2
+ab_shad <- generate_quant_SD(sp_shap)
+
+pdf(paste0(fig_dir, '/spatial_shap_example/quantitative_shadow.pdf'), height = 4*0.6, width = 14*0.6)
+tm_shape(ab_shad %>% filter(!is.na(SD_OratioE))) +
+  tm_fill(col = 'SD_OratioE', 
+          style = 'cont',
+          palette = 'Spectral',
+          title = 'Quantitative shadow distribution', 
+          colorNA = 'transparent', 
+          #breaks = c(0, 0.5, 1), 
+          legend.is.portrait = F) +
+  tm_shape(river_intersect_lakes) + 
+  tm_lines(legend.show = F, col = 'black', lwd = 0.5) + 
+  tm_shape(lakes) +
+  tm_polygons(border.col = "black", col = "white", legend.show = F, lwd = 0.5) + 
+  tm_layout(frame = F,
+            bg.color = "transparent")
+dev.off()
+
+
+
+
+#### Results reporting ---- 
+
+save(
+  # correlations between shapley values and environment
+  cor_discharge_connectivity,
+  cor_median_abs_all, 
+  cor_mean_sd_all, 
+  # summary of shadow distributions for text
+  AB_shad_summary,
+  file = 'data/03-results-text.RData')
+

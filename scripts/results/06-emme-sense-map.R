@@ -1,5 +1,8 @@
 ### load objects for creating better maps
 
+## script to perform shapely analysis across multiple species
+pacman::p_load(tidyverse, sf, terra, randomForest, fastshap, tmap, gridExtra, tidyquant)
+
 # get paths to spatial objects
 dd <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/sdm-pipeline/env-data/"
@@ -9,6 +12,9 @@ dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nat
 # get the teilenzugsgebeit for the sense
 sense <- data.frame(catchment = 'Sense', TEZGNR40 = c(100184, 101484, 105044, 105663, 102204, 102377))
 emme <- data.frame(catchment = 'Emme', TEZGNR40 = c(106570, 106299, 101728, 101280, 106548, 103982, 108894))
+
+# load for all spatial objects (some are re-loaded below)
+source('scripts/results/00-load-spatial.R')
 
 #### swiss borders ----
 
@@ -110,6 +116,26 @@ bbox_catch <- st_bbox(st_buffer(rbind(emme_union, sense_union), 10000))
 tmap_mode('plot')
 
 pdf('figures/map_of_catchments.pdf', width = 7, height = 5)
+tm_shape(ch_poly) + 
+  tm_borders(col='transparent') + 
+  #tm_shape(subcatchments_rhine_union) + 
+  #tm_polygons(border.col = 'transparent', fill = 'gray90')+
+  tm_scale_bar(text.size = 1, position = c('left', 'bottom'), color.light = 'gray75') + 
+  tm_shape(st_union(lakes, ch_poly)) + 
+  tm_borders(col = 'black') + 
+  tm_shape(emme_union) + 
+  tm_polygons(col = 'red', legend.show = F, border.col = 'red', lwd = 5) + 
+  tm_shape(sense_union) + 
+  tm_polygons(col = 'red', legend.show = F, border.col = 'red', lwd = 5) + 
+  tm_shape(rivers_rhein %>% arrange(STRAHLE)) + 
+  tm_lines(lwd = 'STRAHLE', scale = 3, legend.lwd.show = F) + 
+  tm_shape(lakes) + 
+  tm_polygons(col = 'lightblue', border.col = 'black') + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()  
+
+png('figures/map_of_catchments.png', res = 300, width = 1500, height = 1000, bg = 'transparent')
 tm_shape(ch_poly) + 
   tm_borders(col='transparent') + 
   #tm_shape(subcatchments_rhine_union) + 

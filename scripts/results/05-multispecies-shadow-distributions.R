@@ -15,10 +15,12 @@ dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Na
 dd_ch <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
 
 # figure directory
-fig_dir <- "figures/ubelix_SDM_RF_MARCH_v6/"
+fig_dir <- "figures/ubelix_SDM_RF_APRIL_V1_02/"
 
 # get run to make figures for
-RUN <- "ubelix_SDM_RF_MARCH_v6"
+RUN <- "ubelix_SDM_RF_APRIL_V1_02"
+RUN_SDM <- "ubelix_SDM_RF_APRIL_V1"
+
 
 # get species of interest
 records_table <- read.csv(paste0(dd, 'sdm-pipeline/species-records-final/records-overview_2010.csv'))
@@ -39,7 +41,7 @@ shap_po_rast <- paste0(shap_dirs, "/shapley_rf_po.TIF")
 shap_pa_rast <- paste0(shap_dirs, "/shapley_rf_pa.TIF")
 
 # get directories for response curve objects
-sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN), full.names = T)
+sdm_dirs <- list.files(paste0("D:/sdm-pipeline/sdm-run/", RUN_SDM), full.names = T)
 sdm_dirs <- sdm_dirs[grepl(paste0(sp_list, collapse = "|"), sdm_dirs)]
 
 # response curve paths
@@ -101,19 +103,26 @@ vars_renamed <- cbind(vars_shap, vars_renamed)
 #### 4. Shadow distribution summaries for all species ----
 
 # custom function to estimate shadow distribution properties and output as a shapefile
-source('scripts/functions/shadow_distribution.R')
+source('scripts/functions/generate_SD_outputs.R')
 
 # natural niche factors
-nn_factors <- c('ecoF_discharge_max_log10_SHAP','ecoF_slope_min_log10_SHAP', 'stars_t_mn_m_c_SHAP', 
-                'stars_t_mx_m_c_SHAP','ecoF_flow_velocity_mean_SHAP', 'local_dis2lake_SHAP')
-hab_factors <- c('local_wet_SHAP', 'local_flood_SHAP', 'local_imd_log10_ele_residual_SHAP', 'ecoF_eco_mean_ele_residual_SHAP')
+nn_factors <- c('ecoF_discharge_max_log10_SHAP',
+                'ecoF_slope_min_log10_SHAP', 
+                'stars_t_mn_m_c_SHAP', 
+                'stars_t_mx_m_c_SHAP',
+                'ecoF_flow_velocity_mean_SHAP', 
+                'local_dis2lake_SHAP')
+hab_factors <- c('local_wet_SHAP', 
+                 'local_flood_SHAP', 
+                 'local_imd_log10_ele_residual_SHAP', 
+                 'ecoF_eco_mean_ele_residual_SHAP')
 con_factors <- c('local_asym_cl_log10_SHAP')
 all_factors <- c(nn_factors, hab_factors, con_factors)
 
 # run shadow distributions across all species
 all_shadow <- lapply(1:length(sp_list), function(x){
   
-  shadow_distribution(sdm_input_data = sdm_dirs[x], 
+  generate_SD_outputs(sdm_input_data = sdm_dirs[x], 
                       raster_data = sp_raster_suit_pa[x], 
                       shap = shap_pa[x], 
                       natural_niche_factors = nn_factors,
@@ -137,6 +146,98 @@ summary_shadow_mean <- summary_shadow %>%
   unnest(cols = c(mean, sd))
 
 write_csv(summary_shadow_mean, file = paste0(fig_dir, '/shadow_dist_summaries/summary_across_species.csv'))
+
+#### 5. Boxplots of shadow distribution summaries across species ----
+
+# colour palette for species
+library(seecolor)
+pal <- c('#B436FF', '#E83197', '#FF6242', '#E88C31', '#FFCC35', 
+         '#E2EB9E', '#65EBA5', '#4DE3FF', '#6772FF' )
+print_color(pal)
+
+# create plot of summary properties for positive contributions of niche effects
+pos_boxplot <- ggplot(data = summary_shadow %>% 
+         filter(grepl('% all subcatchments with a positive contribution', property)) %>% 
+         mutate(property = recode(.$property, 
+                                  '% all subcatchments with a positive contribution of ecoF_discharge_max_log10_SHAP' = 'discharge', 
+                                  '% all subcatchments with a positive contribution of ecoF_slope_min_log10_SHAP' = 'slope', 
+                                  '% all subcatchments with a positive contribution of stars_t_mn_m_c_SHAP' = 'min. temp',
+                                  '% all subcatchments with a positive contribution of stars_t_mx_m_c_SHAP' = 'max. temp.',
+                                  '% all subcatchments with a positive contribution of ecoF_flow_velocity_mean_SHAP' = 'flow velocity',
+                                  '% all subcatchments with a positive contribution of local_dis2lake_SHAP' = 'distance to lake'))) + 
+  geom_boxplot(aes(x = property, y = value), outlier.colour = NA, width = 0.25, position= position_nudge(x=-0.2)) + 
+  geom_jitter(aes(x = property, y = value, fill = species), size = 3, pch = 21, 
+              position = position_nudge(x=0.2)) +
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        panel.grid = element_blank(),
+        plot.title = element_text(size = 10), 
+        legend.position = 'none') + 
+  ylab('% subcatchments') + 
+  xlab(NULL) + 
+  scale_fill_manual(values = pal)
+pos_boxplot
+
+# create plot of summary properties for negative contributions of threat effects
+neg_boxplot <- ggplot(data = summary_shadow %>% 
+         filter(grepl('% subcatchments inside niche with a negative contribution of ', property)) %>% 
+         mutate(property = recode(.$property, 
+                                  '% subcatchments inside niche with a negative contribution of local_flood_SHAP' = 'floodplain', 
+                                  '% subcatchments inside niche with a negative contribution of local_imd_log10_ele_residual_SHAP' = 'urbanisation', 
+                                  '% subcatchments inside niche with a negative contribution of ecoF_eco_mean_ele_residual_SHAP' = 'morph. mod.',
+                                  '% subcatchments inside niche with a negative contribution of local_asym_cl_log10_SHAP' = 'connectivity', 
+                                  '% subcatchments inside niche with a negative contribution of local_wet_SHAP' = 'wetland'))) + 
+  geom_boxplot(aes(x = property, y = value), outlier.colour = NA, width = 0.25, position= position_nudge(x=-0.2)) + 
+  geom_jitter(aes(x = property, y = value, fill = species), size = 3, pch = 21, 
+              position = position_nudge(x=0.2)) +
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        panel.grid = element_blank(),
+        plot.title = element_text(size = 10), 
+        legend.position = 'none') + 
+  ylab('% expected distribution') + 
+  xlab(NULL) + 
+  scale_fill_manual(values=pal)
+neg_boxplot
+
+# percentages of subcatchments with 'n' number of threats
+threat_boxplot <- ggplot(data = summary_shadow %>% 
+         filter(grepl('% of subcatchments inside niche with', property)) %>% 
+         mutate(property = recode(.$property, 
+                                  '% of subcatchments inside niche with 0 threats negative' = '0', 
+                                  '% of subcatchments inside niche with 1 threats negative' = '1', 
+                                  '% of subcatchments inside niche with 2 threats negative' = '2', 
+                                  '% of subcatchments inside niche with 3 threats negative' = '3', 
+                                  '% of subcatchments inside niche with 4 threats negative' = '4', 
+                                  '% of subcatchments inside niche with 5 threats negative' = '5'))) + 
+  geom_boxplot(aes(x = property, y = value), outlier.colour = NA, width = 0.25, position= position_nudge(x=-0.2)) + 
+  geom_jitter(aes(x = property, y = value, fill = species), size = 3, pch = 21, 
+              position = position_nudge(x=0.2)) +
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        panel.grid = element_blank(),
+        plot.title = element_text(size = 10), 
+        legend.position = 'none') + 
+  ylab('% expected distribution') + 
+  xlab(NULL) + 
+  scale_fill_manual(values = pal)
+threat_boxplot
+
+png(filename = paste0(fig_dir, 'shadow_dist_summaries/perc_across_species.png'),
+    res = 300, width = 2500, height = 750)
+cowplot::plot_grid(pos_boxplot, neg_boxplot, threat_boxplot, align = 'h', nrow = 1)
+dev.off()
+
+png(filename = paste0(fig_dir, 'shadow_dist_summaries/species_legend.png'),
+    res = 300, width = 1000, height = 1000)
+plot(cowplot::get_legend(ggplot(data = summary_shadow) + 
+                            geom_point(aes(x=property, y=value, fill = species), pch = 21, size = 5) + 
+                           theme(
+                                 legend.key = element_rect(colour = 'white', fill = 'white'),
+                                 legend.text = element_text(size = 15, face = 'italic')
+                                 ) +
+                            scale_fill_manual(values = pal)))
+dev.off()
 
 #### 5. Biplot of threatened sub-cathcments for each species ----
 
@@ -207,167 +308,28 @@ lapply(all_shadow, function(x) {
 
 #### 6. Create the maps of shadow distributions from spatial objects shapley values ----
 
-# this creates additional columns on our spatial objects that summarise the expected, observed and shadow distributions
+# run the quantitative shadow distribution estimation
+# which creates additional columns on our spatial objects 
+# that summarise the expected, observed and shadow distributions
+source('scripts/functions/generate_quant_SD.R')
 
+# output list
 all_dd_method <- list()
 
+# run loop
 for(method in 1:4){
-
-all_dd <- lapply(1:length(all_shadow), function(i){
   
-  ####
-  ## READ IN DATA
-  # get species i 
-  sp <- all_shadow[[i]]$species_name[1]
-  print(sp)
+  # run quantitative shadow distribution
+  all_dd <- lapply(1:length(all_shadow), function(x) generate_quant_SD(all_shadow[[x]]))
   
-  # get shapley shape files distribution
-  shap_sp_i <- all_shadow[[i]]
+  # get names
+  names(all_dd) <- sp_list
   
-  
-  ####
-  ## DEFINE THE SUITABILITY PREDICTIONS USING THE BASELINE PREDICTION AND THE SUMMED SHAPLEY VALUES
-  
-  # get the baseline value as the mean of all habitat suitability predictions
-  baseline_value <- mean(shap_sp_i$suitability, na.rm = T)
-    
-  # sum all the shapley values to get the net prediction as a deviaiton from the baseline mean prediction
-  shap_sp_i$shap_all_sum <- rowSums(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% all_factors]), na.rm = T)
-  
-  # get the baseline suitability values estimated as the sum of the shapely + baseline
-  # this ensure internal consistency and that all values are estimated from the shapely values
-  shap_sp_i$shap_suit_baseline <- shap_sp_i$shap_all_sum + baseline_value
-  # the shap_suit_baseline object is also the predicted distribution
-  
-  # check the correlation is very high between methods, some error is expected from randomisation proceedure in the shapley estimations.
-  suit_method_correlation <- cor(shap_sp_i$shap_suit_baseline, shap_sp_i$suitability, method = 'pearson')
-  print(suit_method_correlation)
-  
-  
-  ####
-  ## DEFINE THE EXPECTED DISTRIBUTION USING THE BASELINE PREDICTION AND THE POSITIVE SHAPLEY VALUES, RELEASING THREATS
-  ## here we require 1. the areas with positive values for natural factors, and within 
-  ## this set, the 2. areas with positive values for threats (unthreatened), 3. areas that would be suitable if
-  
-  ## PARTITION
-  # partition out the different shapley components in different groupings
-  shap_sp_i$nn_sum      <- rowSums(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% nn_factors]), na.rm = T)
-  shap_sp_i$nn_sum_mask <- ifelse(shap_sp_i$nn_sum < 0, NA, shap_sp_i$nn_sum)
-  shap_sp_i$hab_sum     <- rowSums(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% hab_factors]), na.rm = T)
-  shap_sp_i$con_sum     <- rowSums(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% con_factors]), na.rm = T)
-  shap_sp_i$threat_continuous <- rowSums(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% c(hab_factors, con_factors)]), na.rm = T)
-    
-  ## EXPECTED DISTRIBUTION
-  # get positive shapley values for threats (i.e., where habitat are positive contributions) 
-  
-  # different methods for estimating corrected values
-  # method 1: convert to absolute value
-  # method 2: convert to the mean value where the shapley values are postive
-  # method 3: convert to the maximum value where the shapley values are positive
-  # method 4: convert to 0 (remove threat but not any positive benefit of removal)
-  
-  threat_shaps <- st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% c(hab_factors, con_factors)])
-  threat_shaps[threat_shaps<0] <- NA
-  
-  if(method == 1){
-  # method 1
-    corrected_threat_shaps <- rowSums(abs(st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% c(hab_factors, con_factors)])), na.rm = T)
-  }
-  
-  if(method == 2){
-  # method 2 
-    corrected_threat_shaps <- rowSums(apply(threat_shaps, 2, function(x){
-    x[is.na(x)] <- mean(x, na.rm = T)
-    return(x)}))
-  }
-  
-  if(method == 3){
-  # method 3
-    corrected_threat_shaps <- rowSums(apply(threat_shaps, 2, function(x){
-    x[is.na(x)] <- quantile(x, 0.95, na.rm = T)
-    return(x)}))
-  }
-  
-  if(method == 4){
-  # method 4
-    corrected_threat_shaps <- rowSums(apply(threat_shaps, 2, function(x){
-    x[is.na(x)] <- 0
-    return(x)}))
-  }
-  
-  # add back in positive effects of threats to get the expected distribution
-  shap_sp_i$expected_distribution <- shap_sp_i$nn_sum + corrected_threat_shaps + baseline_value
-  
-  # mask the expected distribution 
-  shap_sp_i$expected_distribution <- ifelse(shap_sp_i$nn_sum < 0, NA, shap_sp_i$expected_distribution)
-  
-  # convert to 1 if > 
-  shap_sp_i$expected_distribution[shap_sp_i$expected_distribution > 1] <- 1
-  
-  ## OBSERVED DISTRIBUTION
-  # take the habitat suitability predictions within the natural niche area
-  shap_sp_i$observed_distribution <- ifelse(is.na(shap_sp_i$nn_sum_mask), NA, shap_sp_i$shap_suit_baseline)
-  
-  
-  ## CONTRIBUTIONS TO SHADOW DISTRIBUTIONS
-  # get matrix of negative shapley values
-  any_neg_threat_shaps <- st_drop_geometry(shap_sp_i[,names(shap_sp_i) %in% c(hab_factors, con_factors)])
-  any_neg_threat_shaps[any_neg_threat_shaps >= 0] <- NA
-  
-  # get the areas where any threat is negative
-  shap_sp_i$sum_presence_negative_threat <- as.numeric(apply(any_neg_threat_shaps < 0, 1, function(x) sum(x, na.rm = T)))
-  shap_sp_i$sum_presence_negative_con <- as.numeric(apply(any_neg_threat_shaps[names(any_neg_threat_shaps) %in% c(con_factors)] < 0, 1, function(x) sum(x, na.rm = T)))
-  shap_sp_i$sum_presence_negative_habitat <- as.numeric(apply(any_neg_threat_shaps[names(any_neg_threat_shaps) %in% c(hab_factors)] < 0, 1, function(x) sum(x, na.rm = T)))
-  
-  # define the shadow distribution quantitatively as the observed / expected
-  shap_sp_i$SD_OratioE <- shap_sp_i$observed_distribution / shap_sp_i$expected_distribution
-
-  # define shadow distribution as the observed as a proportion of E
-  shap_sp_i$SD_OpercentOfE <- (shap_sp_i$observed_distribution - shap_sp_i$expected_distribution) / shap_sp_i$expected_distribution
-  
-  # define the shadow distribution quantitatively as the observed - expected
-  shap_sp_i$SD_OminusE <- shap_sp_i$observed_distribution - shap_sp_i$expected_distribution
-  
-  # define the shadow distribution as the areas in the expected distribution that have negative net threat effects
-  shap_sp_i$SD_expected_threat_continuous <- ifelse(is.na(shap_sp_i$expected_distribution), NA, shap_sp_i$threat_continuous)
-  
-  # define the shadow distribution as the areas in the expected where any threat is negative, and the magnitude of this threat
-  shap_sp_i$SD_expected_sum_presence_negative_threat <- ifelse(is.na(shap_sp_i$expected_distribution), NA, shap_sp_i$sum_presence_negative_threat)
-  shap_sp_i$SD_expected_sum_presence_negative_con <- ifelse(is.na(shap_sp_i$expected_distribution), NA, shap_sp_i$sum_presence_negative_con)
-  shap_sp_i$SD_expected_sum_presence_negative_habitat <- ifelse(is.na(shap_sp_i$expected_distribution), NA, shap_sp_i$sum_presence_negative_habitat)
-  
-  # test maps of species different distribution types
-  # tm_shape(shap_sp_i) + tm_fill(col = 'shap_suit_baseline')
-  # tm_shape(shap_sp_i) + tm_fill(col = 'observed_distribution')
-  # tm_shape(shap_sp_i) + tm_fill(col = 'expected_distribution')
-  # tm_shape(shap_sp_i) + tm_fill(col = 'shadow_distribution_OminusE')
-  # tm_shape(shap_sp_i) + tm_fill(col = 'shadow_distribution_ThreatInE')
-  # tm_shape(shap_sp_i) + tm_fill(col = 'shadow_distribution_anyNegThreatInE')
-  # tm_shape(shap_sp_i) + tm_fill(col = 'expected_but_absent')
-  # tm_shape(shap_sp_i) + tm_fill(col = 'observed_and_present')
-  
-  # NOTE:
-  # the observed_distribution and expected_distribution have the same masking, 
-  # such that the observed is simply the expected but with the effects of threat factors retained in the
-  # habitat suitability score. In this way, we can directly compare these layers as they are both built from the 
-  # partitioned suitability scores using the shapley values.
-  # Note that we avoided metrics that use the threshold defined by the original suitability model. This value is inherently 
-  # biased towards representing all the processes that affect a species distribution together, whereas our 
-  # comparison of observed_distribution and expected_distribution are built from partitioning the contributions
-  # based on different categories so is less biased towards the currently observed distribution, but we lack a clear way 
-  # to define a 'presence' or 'absence' based on thresholds as is often reported in the literature. 
-
-  # return the objects of interest
-  return(shap_sp_i)
-  
-})
-
-# get names
-names(all_dd) <- sp_list
-
-all_dd_method[[method]] <- all_dd
+  # assign to output list
+  all_dd_method[[method]] <- all_dd
 
 }
+
 
 #### 7. Plot each distribution type across all species ----
 
@@ -620,20 +582,15 @@ print('MEAN SUITABILITY OF THE OBSERVED DISTRIBTUION')
 # Summary of mean observed distribution
 print(round(summary(all_dd_sum_sf$observed_distribution_mean), 2))
 mean_suit <- mean(all_dd_sum_sf$observed_distribution_mean, na.rm = T)
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# 0.21    0.47    0.56    0.56    0.66    0.96 
-
 
 print('MEAN SUITABILITY OF THE EXPECTED DISTRIBTUION')
 # Summary of mean expected distribution
 print(round(summary(all_dd_sum_sf$expected_distribution_mean), 2))
 mean_exp <- mean(all_dd_sum_sf$expected_distribution_mean, na.rm = T)
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# 0.35    0.54    0.62    0.62    0.70    0.99 
 
 print('MEAN PERCENTAGE REDUCTION IN SUITABILITY BETWEEN OBSERVED AND EXPECTED')
 # Mean reduction in suitability, calculate directly from species-metric
-print(1 - mean(all_dd_sum_sf$SD_OratioE_mean)) # 0.1078135% reduction in suitability 
+print(1 - mean(all_dd_sum_sf$SD_OratioE_mean)) 
 
 print('T-TEST OF REDUCTION IN SUITABILITIES BETWEEN OBSERVED AND EXPECTED')
 print(t.test(all_dd_sum_sf$observed_distribution_mean, all_dd_sum_sf$expected_distribution_mean))
@@ -644,38 +601,34 @@ print('MINIMUM SUITABILITY OF OBSERVED DISTRIBUTION WITHIN SET OF SPECIES')
 # Summary of minimum observed distribution
 print(round(summary(all_dd_sum_sf$observed_distribution_min), 2))
 mean_suit <- mean(all_dd_sum_sf$observed_distribution_min,na.rm = T)
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# 0.13    0.28    0.34    0.35    0.42    0.74 
 
 print('MINIMUM SUITABILITY OF EXPECTED DISTRIBUTION WITHIN SET OF SPECIES')
 # Summary of minimum expected distribution
 print(round(summary(all_dd_sum_sf$expected_distribution_min), 2))
 mean_exp <- mean(mean(all_dd_sum_sf$expected_distribution_min,na.rm = T))
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# 0.30    0.40    0.45    0.45    0.50    0.74 
 
 print('PERCENTAGE DIFFERENCE BETWEEN MINIMUM EXPECTED AND OBSERVED SUITABILITY')
 ## Percentage difference between observed and expected
 # Mean percentage reduction in suitability comparing observed to expected 
 print(1-mean(all_dd_sum_sf$SD_OratioE_min)) # 0.2911247% reduction in suitability 
-print(t.test(all_dd_sum_sf$observed_distribution_min, all_dd_sum_sf$expected_distribution_min))
+t_test_exp_obs <- t.test(all_dd_sum_sf$observed_distribution_min, all_dd_sum_sf$expected_distribution_min)
+print(t_test_exp_obs)
+
 
 print('SUMMARY OF MEAN ACROSS SPECIES PERCENTAGE DIFFERENCE BETWEEN OBSERVED AND EXPECTED')
 # Summary of mean percentage difference between observed and expected suitability
 print(summary(all_dd_sum_sf$SD_OpercentOfE_mean))
-# Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-# -0.53072 -0.13891 -0.08651 -0.10781 -0.05085  0.00000 
 
 print('SUMMARY OF MINIMUM ACROSS SPECIES PERCENTAGE DIFFERENCE BETWEEN OBSERVED AND EXPECTED')
 # Summary of minmum percentage difference between observed and expected suitability
 print(summary(all_dd_sum_sf$SD_OpercentOfE_min))
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# -0.7390 -0.4778 -0.2367 -0.2911 -0.1201  0.0000 
+mean_of_min_shad_per_species <- signif(mean(all_dd_sum_sf$SD_OpercentOfE_min, na.rm = T),2)
 
 print('PERCENTAGE DIFFERENCE IN WORST 10% OF CATCHMENTS')
 ## Percentage difference in worst 10% of catchments 
 # What is the mean reduction in suitability in the lowest 10th quantile 
-print(mean(all_dd_sum_sf$SD_OpercentOfE_mean[all_dd_sum_sf$SD_OpercentOfE_mean<quantile(all_dd_sum_sf$SD_OpercentOfE_mean, 0.1)]))
+worst_10perc <- mean(all_dd_sum_sf$SD_OpercentOfE_mean[all_dd_sum_sf$SD_OpercentOfE_mean<quantile(all_dd_sum_sf$SD_OpercentOfE_mean, 0.1)])
+print(worst_10perc)
 
 
 print('LARGEST REDUCTION IN HABITAT SUITABILITY (MINIMUM OF MEAN REDUCTION)')
@@ -690,18 +643,59 @@ print(min(all_dd_sum_sf$SD_OratioE_min))
 ## Comparative correlations between threat numbers and percentage reductions
 print('spearmans rank between shadow distribution and threat number - mean shadow in community')
 # spearmans rank between shadow distribution and threat number
-print(cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_con_mean, all_dd_sum_sf$SD_OratioE_mean, method = 'spearman'))
-print(cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_habitat_mean, all_dd_sum_sf$SD_OratioE_mean, method = 'spearman'))
+cor_con_shadmean <- cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_con_mean, all_dd_sum_sf$SD_OratioE_mean, method = 'spearman')
+print(cor_con_shadmean)
+cor_hab_shadmean <- cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_habitat_mean, all_dd_sum_sf$SD_OratioE_mean, method = 'spearman')
+print(cor_hab_shadmean)
 
 # spearmans rank between shadow distribution and threat number
 print('spearmans rank between shadow distribution and threat number - minimum shadow in community')
-print(cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_con_mean, all_dd_sum_sf$SD_OratioE_min, method = 'spearman'))
-print(cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_habitat_mean, all_dd_sum_sf$SD_OratioE_min, method = 'spearman'))
+cor_con_shadmin <- cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_con_mean, all_dd_sum_sf$SD_OratioE_min, method = 'spearman')
+print(cor_con_shadmin)
+cor_hab_shadmin <- cor.test(all_dd_sum_sf$SD_expected_sum_presence_negative_habitat_mean, all_dd_sum_sf$SD_OratioE_min, method = 'spearman')
+print(cor_hab_shadmin)
 
 sink()
 
 
 
+### save object as named list that contains information for summaries across method
+grab_stats <- function(x, cor_or_stat){
+  glance_t <- broom::glance(x)
+  p <- x$p.value
+  if(cor_or_stat == 'stat'){  out <- paste0(signif(x$statistic,2),'; ', ifelse(p > 0.05, 'p>0.05',
+                                                                    ifelse(p < 0.001, 'p<0.001', 
+                                                                           ifelse(p<0.01, 'p<0.01', 
+                                                                                  ifelse(p<0.05, 'p<0.05', 'error')))))
+  }
+  if(cor_or_stat == 'cor'){    out <- paste0(signif(x$estimate,2),'; ', ifelse(p > 0.05, 'p>0.05',
+                                                     ifelse(p < 0.001, 'p<0.001', 
+                                                            ifelse(p<0.01, 'p<0.01', 
+                                                                   ifelse(p<0.05, 'p<0.05', 'error')))))
+    
+  }
+  return(out)
+}
+
+
+### get the objects and values that are cited directly in the manuscript text for saving externally
+summary_sd_per_method <- list(
+  `mean suitability of expected distribution` = signif(mean_exp, 2),
+  `mean suitability of observed distribution` = signif(mean_suit,2),
+  `t-test summary between expected and observed` = grab_stats(t_test_exp_obs, cor_or_stat = 'stat'), 
+  `perc. reduction in observed vs. expected` = signif(1 - mean(all_dd_sum_sf$SD_OratioE_mean, na.rm = T), 2),
+  `suitability in lowest 10% catchments` = signif(worst_10perc,2), 
+  `minimum species shadow per catchment` = mean_of_min_shad_per_species, 
+  `spearman: connectivity vs expected mean` = grab_stats(cor_con_shadmean, cor_or_stat = 'cor'), 
+  `spearman: habitat vs expected mean` = grab_stats(cor_hab_shadmean, cor_or_stat = 'cor'), 
+  `spearman: connectivity vs expected min` = grab_stats(cor_con_shadmin, cor_or_stat = 'cor'), 
+  `spearman: habitat vs expected mean` = grab_stats(cor_hab_shadmin, cor_or_stat = 'cor')
+)
+saveRDS(summary_sd_per_method, 
+        paste0(fig_dir, '/dark_diversity/', 'method_', method, '/summary_statistics.rds'))
+
+
+### plot biplots of expected vs. observed distributions
 png(paste0(fig_dir, '/dark_diversity/', 'method_', method, '/biplot_threats.png'),
     width = 750, height = 1500, res = 300,
     bg = "transparent")
@@ -744,7 +738,7 @@ grid.arrange(
 )
 dev.off()
 
-}  
+}
 
 #### 10. Summarise environmental properties catchments with strong vs. weak shadow distribution ----
 
@@ -773,6 +767,10 @@ data.frame(high_completeness = all_env_subcatchments %>%
   view()
 
 
-
+#### write results to text ----
   
+m3_shad <- readRDS(paste0(fig_dir, '/dark_diversity/', 'method_', 3, '/summary_statistics.rds'))
 
+save(summary_shadow_mean, 
+     m3_shad,
+     file = 'data/05-results-text.RData')

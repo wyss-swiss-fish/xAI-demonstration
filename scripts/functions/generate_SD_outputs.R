@@ -1,4 +1,5 @@
-## function to summarise the shadow distribution
+### function to summarise the shadow distribution from the model outputs and 
+### provide summaries appendend to a full dataaset of shapely values and suitabilities. 
 
 # Input
 # Subcatchments file (subcatchments_final)
@@ -27,17 +28,17 @@
  #species <- sp_list[1]
 
 # define the output folder
- #output_folder <- paste0('figures/ubelix_SDM_RF_MARCH_v6/shadow_dist_summaries/')
+ #output_folder <- paste0('figures/ubelix_SDM_RF_APRIL_V1_02/shadow_dist_summaries/')
 
-
-shadow_distribution <- function(sdm_input_data, 
-                             raster_data, 
-                             shap, 
-                             natural_niche_factors, 
-                             habitat_factors,
-                             conn_factors, 
-                             species,
-                             output_folder){
+## function 
+generate_SD_outputs <- function(sdm_input_data, 
+                                          raster_data, 
+                                          shap, 
+                                          natural_niche_factors, 
+                                          habitat_factors,
+                                          conn_factors, 
+                                          species,
+                                          output_folder){
   
   
 

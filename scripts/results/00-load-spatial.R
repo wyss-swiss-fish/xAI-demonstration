@@ -79,7 +79,8 @@ all_env_subcatchments <- terra::extract(all_env_rast,
 all_env_subcatchments$TEILEZGNR <- subcatchments_final$TEILEZGNR
 all_env_subcatchments$ID <- NULL
 
-
+#saveRDS(all_env_subcatchments, 
+#        file = paste0(dd, 'sdm-results-share/env_data_df.RDS'))
 
 # read in swiss boundaries
 ch <- st_read(paste0(dd, 'swissboundaries3d_2021-07_2056_5728.shp/SHAPEFILE_LV95_LN02'), layer = 'swissBOUNDARIES3D_1_3_TLM_LANDESGEBIET')

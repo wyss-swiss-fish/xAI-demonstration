@@ -740,6 +740,8 @@ dev.off()
 
 }
 
+
+
 #### 10. Summarise environmental properties catchments with strong vs. weak shadow distribution ----
 
 # identify high completeness regions
@@ -768,9 +770,14 @@ data.frame(high_completeness = all_env_subcatchments %>%
 
 
 #### write results to text ----
-  
+
+m1_shad <- readRDS(paste0(fig_dir, '/dark_diversity/', 'method_', 1, '/summary_statistics.rds'))
+m2_shad <- readRDS(paste0(fig_dir, '/dark_diversity/', 'method_', 2, '/summary_statistics.rds'))
 m3_shad <- readRDS(paste0(fig_dir, '/dark_diversity/', 'method_', 3, '/summary_statistics.rds'))
 
 save(summary_shadow_mean, 
+     m1_shad, 
+     m2_shad,
      m3_shad,
      file = 'data/05-results-text.RData')
+

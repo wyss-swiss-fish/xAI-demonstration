@@ -299,9 +299,3 @@ ggplot(data = values_combined) +
         strip.text = element_text(angle = 0, hjust = 0, vjust = 1)) + 
   labs(color = " ")
 dev.off()
-  
-  
-
-
-
-

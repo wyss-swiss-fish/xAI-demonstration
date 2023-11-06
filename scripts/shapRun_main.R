@@ -5,7 +5,7 @@
 i <- as.numeric(commandArgs(trailingOnly = TRUE))
 print(i)
 
-RUN_NAME <- 'ubelix_SDM_RF_APRIL_V1'
+RUN_NAME <- 'ubelix_SDM_RF_APRIL_V1_02'
 
 RUN_NAME_APPEND <- '01'
 

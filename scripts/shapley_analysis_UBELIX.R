@@ -158,112 +158,112 @@ subcatchments_final_env_df <- st_drop_geometry(subcatchments_final_env) %>% na.o
 
 
 # first aggregate suitabilities to catchments to speed up estimation of shapley values
-if ("presence_only" %in% fitting) {
- 
- if (!file.exists(sp_RF_po)) {
-   next()
- }
-
- #### SUITABILITY ACROSS SUBCATCHMENTS
- # get mean raster
- rast_suit_po <- mean(rast(sp_raster_suit_po), na.rm = T)
-
- # extract the raster values per subcatchment
- po_suit_poly <- terra::extract(
-   x = rast_suit_po,
-   y = vect(subcatchments_final), # catchment data produced in the spatial_data.R script
-   fun = function(x) {
-     mean(x, na.rm = T)
-   }
- )
-
- # bind back in environmental data from extractions
- subcatchments_suit_po <- cbind(subcatchments_final, po_suit_poly)
- subcatchments_suit_po_df <- st_drop_geometry(subcatchments_suit_po) %>% na.omit()
-
- 
- #### PRESENCE ACROSS SUBCATCHMENTS
- rast_pres_po <- mean(rast(sp_raster_pres_po), na.rm = T)
-
- po_pres_poly <- terra::extract(
-   x = rast_pres_po,
-   y = vect(subcatchments_final), # catchment data produced in the spatial_data.R script
-   fun = function(x) {
-     mean(x, na.rm = T)
-   }
- )
-
- # bind back in environmental data from extractions
- subcatchments_pres_po <- cbind(subcatchments_final, po_pres_poly)
- subcatchments_pres_po_df <- st_drop_geometry(subcatchments_pres_po) %>% na.omit()
-
- subcatchments_sdm_po <- left_join(
-   subcatchments_suit_po_df %>% select(TEILEZGNR, mean) %>% rename(., c("suitability" = "mean")),
-   subcatchments_pres_po_df %>% select(TEILEZGNR, mean) %>% rename(., c("presence" = "mean"))
- )
-
-
- #### SHAPLEY ANALYSIS
- sp_RF_po_i <- readRDS(sp_RF_po)
- sp_data_po_i <- readRDS(sp_data_po)$rf
-
- # run shapleys over all model iterations
- sp_shapley_po <- mclapply(1:length(sp_RF_po_i), FUN = function(x) {
-   
-   # get the variables
-   vars <- colnames(attr(sp_RF_po_i[[x]]$terms, "factors"))
-   
-   # define the prediction function to use
-   pfun <- function(object, newdata) {
-     as.numeric(as.character(predict(object, newdata = newdata, type = 'prob')[,2]))
-   }
-   
-   # get the shapley values
-   shapley <- fastshap::explain(
-     
-     # model object
-     object = sp_RF_po_i[[x]], 
-     # names of features to explain
-     feature_names = vars, 
-     # X data used to fit the model
-     X = sp_data_po_i[[x]][vars], 
-     # new data to predict on
-     newdata = subcatchments_final_env_df[vars],
-     # predictive function
-     pred_wrapper = pfun, 
-     # number of replicates
-     nsim = N_SIMS
-     
-   )
-   
-   # aggregate and clean up
-   shapley <- shapley %>% data.frame
-   
-   # rename shapley data
-   names(shapley) <- paste0(names(shapley), '_SHAP')
-   
-   # bind back with the new_data
-   shapley <- cbind(subcatchments_final_env_df, shapley)
-   
-   return(shapley)
-   
- }, mc.cores = 5)
-
- sp_shapley_po <- lapply(sp_shapley_po, function(x) {
-   left_join(left_join(x, subcatchments_final_env), subcatchments_sdm_po)
- })
-
- sp_shapley_po <- bind_rows(sp_shapley_po, .id = "model_run")
- 
- sp_shapley_po <- sp_shapley_po %>% dplyr::select(TEILEZGNR, suitability, presence, matches('_SHAP'))
- 
- sp_shapley_po$model_type = 'PO'
- sp_shapley_po$species_name = sp_name
- sp_shapley_po$nrep = N_SIMS
-
- saveRDS(sp_shapley_po, paste0(save_dir, "shapley_rf_po.RDS"))
- 
-}
+# if ("presence_only" %in% fitting) {
+#  
+#  if (!file.exists(sp_RF_po)) {
+#    next()
+#  }
+# 
+#  #### SUITABILITY ACROSS SUBCATCHMENTS
+#  # get mean raster
+#  rast_suit_po <- mean(rast(sp_raster_suit_po), na.rm = T)
+# 
+#  # extract the raster values per subcatchment
+#  po_suit_poly <- terra::extract(
+#    x = rast_suit_po,
+#    y = vect(subcatchments_final), # catchment data produced in the spatial_data.R script
+#    fun = function(x) {
+#      mean(x, na.rm = T)
+#    }
+#  )
+# 
+#  # bind back in environmental data from extractions
+#  subcatchments_suit_po <- cbind(subcatchments_final, po_suit_poly)
+#  subcatchments_suit_po_df <- st_drop_geometry(subcatchments_suit_po) %>% na.omit()
+# 
+#  
+#  #### PRESENCE ACROSS SUBCATCHMENTS
+#  rast_pres_po <- mean(rast(sp_raster_pres_po), na.rm = T)
+# 
+#  po_pres_poly <- terra::extract(
+#    x = rast_pres_po,
+#    y = vect(subcatchments_final), # catchment data produced in the spatial_data.R script
+#    fun = function(x) {
+#      mean(x, na.rm = T)
+#    }
+#  )
+# 
+#  # bind back in environmental data from extractions
+#  subcatchments_pres_po <- cbind(subcatchments_final, po_pres_poly)
+#  subcatchments_pres_po_df <- st_drop_geometry(subcatchments_pres_po) %>% na.omit()
+# 
+#  subcatchments_sdm_po <- left_join(
+#    subcatchments_suit_po_df %>% select(TEILEZGNR, mean) %>% rename(., c("suitability" = "mean")),
+#    subcatchments_pres_po_df %>% select(TEILEZGNR, mean) %>% rename(., c("presence" = "mean"))
+#  )
+# 
+# 
+#  #### SHAPLEY ANALYSIS
+#  sp_RF_po_i <- readRDS(sp_RF_po)
+#  sp_data_po_i <- readRDS(sp_data_po)$rf
+# 
+#  # run shapleys over all model iterations
+#  sp_shapley_po <- mclapply(1:length(sp_RF_po_i), FUN = function(x) {
+#    
+#    # get the variables
+#    vars <- colnames(attr(sp_RF_po_i[[x]]$terms, "factors"))
+#    
+#    # define the prediction function to use
+#    pfun <- function(object, newdata) {
+#      as.numeric(as.character(predict(object, newdata = newdata, type = 'prob')[,2]))
+#    }
+#    
+#    # get the shapley values
+#    shapley <- fastshap::explain(
+#      
+#      # model object
+#      object = sp_RF_po_i[[x]], 
+#      # names of features to explain
+#      feature_names = vars, 
+#      # X data used to fit the model
+#      X = sp_data_po_i[[x]][vars], 
+#      # new data to predict on
+#      newdata = subcatchments_final_env_df[vars],
+#      # predictive function
+#      pred_wrapper = pfun, 
+#      # number of replicates
+#      nsim = N_SIMS
+#      
+#    )
+#    
+#    # aggregate and clean up
+#    shapley <- shapley %>% data.frame
+#    
+#    # rename shapley data
+#    names(shapley) <- paste0(names(shapley), '_SHAP')
+#    
+#    # bind back with the new_data
+#    shapley <- cbind(subcatchments_final_env_df, shapley)
+#    
+#    return(shapley)
+#    
+#  }, mc.cores = 5)
+# 
+#  sp_shapley_po <- lapply(sp_shapley_po, function(x) {
+#    left_join(left_join(x, subcatchments_final_env), subcatchments_sdm_po)
+#  })
+# 
+#  sp_shapley_po <- bind_rows(sp_shapley_po, .id = "model_run")
+#  
+#  sp_shapley_po <- sp_shapley_po %>% dplyr::select(TEILEZGNR, suitability, presence, matches('_SHAP'))
+#  
+#  sp_shapley_po$model_type = 'PO'
+#  sp_shapley_po$species_name = sp_name
+#  sp_shapley_po$nrep = N_SIMS
+# 
+#  saveRDS(sp_shapley_po, paste0(save_dir, "shapley_rf_po.RDS"))
+#  
+# }
 
 
 

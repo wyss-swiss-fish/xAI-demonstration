@@ -558,7 +558,7 @@ con_factors <- c('local_asym_cl_log10_SHAP')
 all_factors <- c(nn_factors, hab_factors, con_factors)
 
 source('scripts/functions/generate_quant_SD.R')
-method = 2
+method = 3
 ab_shad <- generate_quant_SD(sp_shap)
 
 pdf(paste0(fig_dir, '/spatial_shap_example/quantitative_shadow.pdf'), height = 4*0.6, width = 14*0.6)

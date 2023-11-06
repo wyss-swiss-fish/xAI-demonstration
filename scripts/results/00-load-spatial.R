@@ -1,4 +1,13 @@
 
+# local storage
+dd_env <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/sdm-pipeline/env-data/"
+dd_ch  <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
+dd  <- "C:/Users/cw21p621/OneDrive - Universitaet Bern/01_Wyss_Academy_for_Nature/analysis/data-dump/"
+
+if(file.exists(paste0(dd, 'sdm-results-share/all_spatial_Waldock2023.RData'))){
+  
+  load(file = paste0(dd, 'sdm-results-share/all_spatial_Waldock2023.RData'))}else{
+
 # read in elevation raster
 base_rast <- rast(paste0(dd_env, "ch-rasters/final-raster-set/all_env_data_RHEIN_RESIDUALS.tif"))
 base_rast <- base_rast[[1]]
@@ -49,8 +58,6 @@ subcatchments_rhine <- st_read(subcatchment_file, layer = "Teileinzugsgebiet") %
   # remove z and m properties that can cause errors later
   st_zm()
 
-
-
 # create croping area to inside of switzerland
 cropping_sf <-
   read_sf(
@@ -86,3 +93,6 @@ all_env_subcatchments$ID <- NULL
 ch <- st_read(paste0(dd, 'swissboundaries3d_2021-07_2056_5728.shp/SHAPEFILE_LV95_LN02'), layer = 'swissBOUNDARIES3D_1_3_TLM_LANDESGEBIET')
 ch <- st_transform(st_union(ch), crs = target_crs)
 
+save.image(paste0(dd, 'sdm-results-share/all_spatial_Waldock2023.RData'))
+
+}

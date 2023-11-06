@@ -1,7 +1,7 @@
 # read me
 
 To run our analysis we use the scripts in the following order:
-sbatch_runShapley_ubelix.sh -> shapRun_main.R -> shapley_analysis_UBELIX.R -> saved output files
+sbatch_runShapley_ubelix.sh -> shapRun_main.R -> shapley_analysis_UBELIX.R -> saved output files -> results scripts
 
 - Initiate sbatch_runShapley_ubelix.sh on UBELIX server at University of Bern.
 

@@ -579,7 +579,12 @@ tm_shape(ab_shad %>% filter(!is.na(SD_OratioE))) +
 dev.off()
 
 
-
+## save as an object
+saveRDS(ab_shad %>% select(TEILEZGNR, nn_sum_mask, nn_sum, 
+                           expected_distribution, observed_distribution, 
+                           SD_OratioE) %>% 
+          st_drop_geometry(), 
+        file = 'alburnoides_SD.rds')
 
 #### Results reporting ---- 
 

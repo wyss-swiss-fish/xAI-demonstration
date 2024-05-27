@@ -195,6 +195,7 @@ neg_boxplot <- ggplot(data = summary_shadow %>%
         panel.grid = element_blank(),
         plot.title = element_text(size = 10), 
         legend.position = 'none') + 
+  scale_x_discrete(labels = c('lack of connectivity', 'lack of floodplains', 'morph. mod.', 'urbanisation', 'lack of wetlands')) + 
   ylab('% expected distribution') + 
   xlab(NULL) + 
   scale_fill_manual(values=pal)

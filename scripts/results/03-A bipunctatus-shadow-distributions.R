@@ -327,6 +327,7 @@ grouped_rc_shap$vars_renamed <- factor(grouped_rc_shap$vars_renamed,
 dir.create(paste0(fig_dir, 'spatial_shap_example/response-curves/'), recursive = T)
 
 for(i in 1:length(unique(grouped_rc_shap$vars_renamed))){
+  
   var_i <- unique(grouped_rc_shap$vars_renamed)[i]
   
   data_i <- grouped_rc_shap %>% 

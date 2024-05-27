@@ -187,9 +187,9 @@ relevel_shap <- all_shap_env %>%
 all_cors$vars_renamed <- factor(all_cors$vars_renamed, levels = relevel_shap$vars_renamed)
 
 #install.packages("seecolor")
-library(seecolor)
-pal <- c('#B436FF', '#E83197', '#FF6242', '#E88C31', '#FFCC35', 
-         '#E2EB9E', '#65EBA5', '#4DE3FF', '#6772FF' )
+pacman::p_load(seecolor)
+pal <- c('#D81B60', '#0E0084', '#FFC107', '#085246', '#F46B00', 
+         '#C48CFE', '#7F3BA7', '#90D27D', '#000000' )
 print_color(pal)
 
 pdf(paste0(contrast_dir, 'correlation_env_shap.pdf'), height = 6, width = 8)

@@ -598,3 +598,6 @@ save(
   AB_shad_summary,
   file = 'data/03-results-text.RData')
 
+
+save.image(file = 'Supplementary Data 1 - Figure 2 and 4.RData')
+

@@ -240,6 +240,9 @@ plot(cowplot::get_legend(ggplot(data = summary_shadow) +
                            scale_fill_manual(values = pal)))
 dev.off()
 
+write_csv(summary_shadow, 'Supplementary Data 3 - Figure 5.csv')
+
+
 #### 5. Biplot of threatened sub-cathcments for each species ----
 
 ## biplots 
@@ -777,13 +780,15 @@ data.frame(high_completeness = all_env_subcatchments %>%
   view()
 
 
+save.image('Supplementary Data 3 - Figure 5 and 6.RData')
+
 #### write results to text ----
 
 m1_shad <- readRDS(paste0(fig_dir, '/dark_diversity/', 'method_', 1, '/summary_statistics.rds'))
 m2_shad <- readRDS(paste0(fig_dir, '/dark_diversity/', 'method_', 2, '/summary_statistics.rds'))
 m3_shad <- readRDS(paste0(fig_dir, '/dark_diversity/', 'method_', 3, '/summary_statistics.rds'))
 
-save(summary_shadow_mean, 
+save(summary_shadow_mean, f
      m1_shad, 
      m2_shad,
      m3_shad,

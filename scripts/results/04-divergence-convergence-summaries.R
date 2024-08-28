@@ -215,536 +215,6 @@ dev.off()
 
   
 
-#### 5. Example 1. Contrast response curves: coupled but divergent -----
-
-# contrast species
-CouDiv1 <- 'Oncorhynchus mykiss'
-CouDiv2 <- 'Squalius cephalus'
-
-CouDiv1_lab <- 'O. mykiss'
-CouDiv2_lab <- 'S. cephalus'
-
-# variable name
-CouDiv_var <- 'ecoF_eco_mean_ele_residual'
-# shapley name
-CouDiv_shap <- 'ecoF_eco_mean_ele_residual_SHAP'
-
-# environmental label
-env_label = 'morph.'
-shap_label = expression(phi1~'morph.')
-
-# plot titles
-title_CouDiv_mean = expression('Mean morphological mod.' ~ phi1)
-title_CouDiv_sd   = expression('S.D. morphological mod.' ~ phi1)
-title_CouDiv_raw  = 'morph.'
-
-
-# read in rasters for focal variables
-shap_rast_CouDiv1 <- rast(paste0(shap_dirs[grepl(CouDiv1, shap_dirs)], "/shap_raster_pa.TIF"))
-shap_rast_CouDiv2 <- rast(paste0(shap_dirs[grepl(CouDiv2, shap_dirs)], "/shap_raster_pa.TIF"))
-
-# read in raw shapleys
-shap_CouDiv1 <- readRDS(shap_pa[grepl(CouDiv1, shap_pa)])
-shap_CouDiv2 <- readRDS(shap_pa[grepl(CouDiv2, shap_pa)])
-
-# join together shapley values to environmental data for each TEILEZGNR
-shap_CouDiv1 <- left_join(shap_CouDiv1 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
-shap_CouDiv2 <- left_join(shap_CouDiv2 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
-
-# get variable of interest
-shap_CouDiv12 <- bind_rows(shap_CouDiv1, shap_CouDiv2) %>% 
-  select(species_name, TEILEZGNR, matches(CouDiv_var))
-
-# shorten names
-shap_CouDiv12 <- shap_CouDiv12 %>% mutate(species_name_lab = case_when(.$species_name == CouDiv1 ~ CouDiv1_lab, 
-                                                                       .$species_name == CouDiv2 ~ CouDiv2_lab))
-
-# contrasting species response curves
-CouDiv <- paste0(contrast_dir, '/Coupled_Divergent/')
-dir.create(CouDiv, recursive =  T)
-
-pdf(paste0(CouDiv, 'response_curves.pdf'), width = 3, height = 3, bg = 'transparent')
-ggplot(data = shap_CouDiv12%>% sample_n(., nrow(.)), 
-       aes(x = .data[[CouDiv_var]], y = .data[[CouDiv_shap]])) + 
-  geom_jitter(aes(pch = species_name_lab, col = species_name_lab)) + 
-  stat_smooth(aes(group = species_name_lab, lty = species_name_lab), 
-              col = 'black', se = F, method = 'gam', size = 0.5) + 
-  geom_hline(yintercept = 0, lwd = 0.25) + 
-  theme_bw() +  
-  theme(panel.grid = element_blank(),
-        aspect.ratio = 0.5, 
-        rect = element_rect(fill = "transparent"), 
-        legend.position = c(0.6,0.9), 
-        legend.title = element_blank(),
-        legend.background = element_blank(),
-        legend.key=element_blank(), 
-        panel.background = element_blank(), 
-        panel.border = element_blank(), 
-        plot.background = element_blank(), 
-        text = element_text(size = 14)) + 
-  ylab(shap_label) + 
-  xlab(env_label) + 
-  scale_colour_manual(values = c('gray50', 'gray75')) + 
-  guides(colour = guide_legend(override.aes = list(size=4)))
-dev.off()
-
-# make wide for plot of shapley values for each species against eachother
-shap_CouDiv12_wide <- shap_CouDiv12 %>%
-  select(-species_name_lab) %>% 
-  pivot_wider(names_from = 'species_name', values_from = CouDiv_shap)
-
-# set the limits
-max_axis <- max(c(shap_CouDiv12_wide[[CouDiv2]], shap_CouDiv12_wide[[CouDiv1]]), na.rm = T)
-min_axis <- min(c(shap_CouDiv12_wide[[CouDiv2]], shap_CouDiv12_wide[[CouDiv1]]), na.rm = T)
-
-
-# make biplot of shapley
-pdf(paste0(CouDiv, 'shapley_biplot.pdf'), width = 3, height = 3, bg = 'transparent')
-ggplot(data = shap_CouDiv12_wide, 
-       aes(x = .data[[CouDiv1]], y = .data[[CouDiv2]], col = (.data[[CouDiv1]] + .data[[CouDiv2]]) / 2)) + 
-  geom_jitter() + 
-  geom_hline(aes(yintercept = 0), lwd = 0.25, col = 'gray50') + 
-  geom_vline(aes(xintercept = 0), lwd = 0.25, col = 'gray50') + 
-  geom_abline(lwd = 0.25, col = 'gray50') + 
-  #scale_colour_manual(values = c('#bd0f06', '#2200c9', 'gray90')) + 
-  scale_colour_gradientn(
-    colors=c('#bd0f06','gray90', '#2200c9'),
-    values=scales::rescale(c(-0.1, -0.02, 0, 0.02 , 0.1)),
-    limits=c(-max(abs(range(shap_CouDiv12_wide[c(CouDiv1, CouDiv2)], na.rm = T))), 
-             max(abs(range(shap_CouDiv12_wide[c(CouDiv1, CouDiv2)], na.rm = T))))) +
-  theme_bw() + 
-  theme(panel.grid = element_blank(), 
-        legend.position = 'none', aspect.ratio = 0.5, 
-        rect = element_rect(fill = "transparent"), 
-        panel.background = element_blank(), 
-        panel.border = element_blank(), 
-        plot.background = element_blank(), 
-        text = element_text(size = 14)) + 
-  xlab(bquote(phi1~ .(paste0(' ', CouDiv1_lab)))) + 
-  ylab(bquote(phi1~ .(paste0(' ', CouDiv2_lab)))) + 
-  ylim(c(min_axis, max_axis)) + 
-  xlim(c(min_axis, max_axis))
-dev.off()
-
-pdf(paste0(CouDiv, '/CouDiv1_map.pdf'), width = 4, height =4, bg = 'transparent')
-tm_shape(shap_rast_CouDiv1[CouDiv_shap]) +
-  tm_raster(style = "cont",
-            palette = c('#bd0f06','gray90', '#2200c9'),
-            legend.reverse = F,
-            title = CouDiv1,
-            legend.is.portrait = F, 
-            legend.show = F, 
-            midpoint = 0,
-            breaks = signif(seq(min(shap_rast_CouDiv1[CouDiv_shap][], na.rm = T), max(shap_rast_CouDiv1[CouDiv_shap][], na.rm = T), length.out = 4),1)) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-pdf(paste0(CouDiv, '/CouDiv2_map.pdf'), width = 4, height =4, bg = 'transparent')
-tm_shape(shap_rast_CouDiv2[CouDiv_shap]) +
-  tm_raster(style = "cont",
-            palette = c('#bd0f06','gray90', '#2200c9'),
-            legend.reverse = F,
-            title = CouDiv2,
-            legend.is.portrait = F, 
-            legend.show = F, 
-            midpoint = 0,
-            breaks = signif(seq(min(shap_rast_CouDiv2[CouDiv_shap][], na.rm = T), max(shap_rast_CouDiv2[CouDiv_shap][], na.rm = T), length.out = 4),1)
-  ) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-
-# read in presence predictions for both species
-pres_CouDiv1 <- rast(sp_raster_pres_pa[grepl(CouDiv1, sp_raster_pres_pa)])
-pres_CouDiv2 <- rast(sp_raster_pres_pa[grepl(CouDiv2, sp_raster_pres_pa)])
-pres_CouDiv12 <- mosaic(pres_CouDiv1, pres_CouDiv2)
-
-shap_div_CouDiv1 <- shap_rast_CouDiv1[CouDiv_shap] > shap_rast_CouDiv2[CouDiv_shap] & shap_rast_CouDiv1[CouDiv_shap] > 0
-shap_div_CouDiv2 <- shap_rast_CouDiv2[CouDiv_shap] > shap_rast_CouDiv1[CouDiv_shap] & shap_rast_CouDiv2[CouDiv_shap] > 0
-
-shap_div_CouDiv1[shap_div_CouDiv1[]==F] <- NA
-shap_div_CouDiv1[shap_div_CouDiv1[]==T] <- 1
-shap_div_CouDiv2[shap_div_CouDiv2[]==F] <- NA
-shap_div_CouDiv2[shap_div_CouDiv2[]==T] <- 2
-
-shap_div_CouDiv12 <- mosaic(shap_div_CouDiv1, shap_div_CouDiv2)
-pres_CouDiv12 <- resample(pres_CouDiv12, shap_div_CouDiv12)
-shap_div_CouDiv12[is.na(pres_CouDiv12)] <- NA
-
-
-## take average of species shapley values and plot
-shap_mean_CouDiv12 <- app(c(shap_rast_CouDiv1[CouDiv_shap], shap_rast_CouDiv2[CouDiv_shap] ), mean)
-pdf(paste0(CouDiv, 'mean_map.pdf'), width = 4, height =4, bg = 'transparent')
-tm_shape(shap_mean_CouDiv12) +
-  tm_raster(style = "cont",
-            palette = c('#bd0f06','gray90', '#2200c9'),
-            legend.reverse = F,
-            title = title_CouDiv_mean,
-            legend.is.portrait = F, 
-            legend.show = T, 
-            midpoint = 0, 
-            breaks = signif(seq(min(shap_mean_CouDiv12[], na.rm = T), max(shap_mean_CouDiv12[], na.rm = T), length.out = 4),1)
-            #breaks = c(-0.2, -0.1, 0, 0.1, 0.2)
-  ) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-## take the sd of species shapley values
-shap_sd_CouDiv12 <- app(c(shap_rast_CouDiv1[CouDiv_shap], shap_rast_CouDiv2[CouDiv_shap] ), sd)
-pdf(paste0(CouDiv, 'sd_map.pdf'), width = 4, height =4, bg = 'transparent')
-tm_shape(shap_sd_CouDiv12) +
-  tm_raster(style = "cont",
-            palette = c('gray90', '#bd0f06'),
-            legend.reverse = F,
-            title = title_CouDiv_sd,
-            legend.is.portrait = F, 
-            legend.show = T,
-            breaks = signif(seq(min(shap_sd_CouDiv12[], na.rm = T), max(shap_sd_CouDiv12[], na.rm = T), length.out = 4),1)
-            #breaks = c(0, 0.1, 0.2, 0.25)
-  ) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-# plot the environmental data
-pdf(paste0(CouDiv, 'raw_map.pdf'), width = 3, height = 3, bg = 'transparent')
-tm_shape(env_data[CouDiv_var]) + 
-  tm_raster(style = 'cont', 
-            palette = rev(c('#bd0f06','gray90', '#2200c9')), 
-            legend.is.portrait = F, 
-            title = title_CouDiv_raw, 
-            legend.show = T, 
-            midpoint = 0, 
-            breaks = signif(seq(min(env_data[CouDiv_var][], na.rm = T), max(env_data[CouDiv_var][], na.rm = T), length.out = 4),1)) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-#### 6. Example 2. Contrast response curves for connnectivity across species ----
-
-# contrast species
-CouCon1 <- 'Lampetra planeri'
-CouCon2 <- 'Barbus barbus'
-
-CouCon1_lab <- 'L. planeri'
-CouCon2_lab <- 'B. barbus'
-
-# variable name
-CouCon_var <- 'local_asym_cl_log10'
-# shapley name
-CouCon_shap <- 'local_asym_cl_log10_SHAP'
-
-# environmental label
-env_label = 'connectivity'
-shap_label = expression(phi1~'conectivity')
-
-# plot titles
-title_CouCon_mean = expression('Mean connectivity' ~ phi1)
-title_CouCon_sd   = expression('S.D. connectivity' ~ phi1)
-title_CouCon_raw  = 'Raw connectivity'
-
-
-# read in rasters for focal variables
-shap_rast_CouCon1 <- rast(paste0(shap_dirs[grepl(CouCon1, shap_dirs)], "/shap_raster_pa.TIF"))
-shap_rast_CouCon2 <- rast(paste0(shap_dirs[grepl(CouCon2, shap_dirs)], "/shap_raster_pa.TIF"))
-
-# read in raw shapleys
-shap_CouCon1 <- readRDS(shap_pa[grepl(CouCon1, shap_pa)])
-shap_CouCon2 <- readRDS(shap_pa[grepl(CouCon2, shap_pa)])
-
-# join together shapley values to environmental data for each TEILEZGNR
-shap_CouCon1 <- left_join(shap_CouCon1 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
-shap_CouCon2 <- left_join(shap_CouCon2 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
-
-# get variable of interest
-shap_CouCon12 <- bind_rows(shap_CouCon1, shap_CouCon2) %>% 
-  select(species_name, TEILEZGNR, matches(CouCon_var))
-
-shap_CouCon12 <- shap_CouCon12 %>% mutate(species_name_lab = case_when(.$species_name == CouCon1 ~ CouCon1_lab, 
-                                                                       .$species_name == CouCon2 ~ CouCon2_lab))
-
-# contrasting species response curves
-CouCon <- paste0(contrast_dir, 'Coupled_Convergent/')
-dir.create(CouCon, recursive =  T)
-
-pdf(paste0(CouCon, 'response_curves.pdf'), width = 3, height = 3, bg = 'transparent')
-ggplot(data = shap_CouCon12 %>% sample_n(., nrow(.)), 
-       aes(x = .data[[CouCon_var]], y = .data[[CouCon_shap]])) + 
-  geom_jitter(aes(pch = species_name_lab, col = species_name_lab)) + 
-  stat_smooth(aes(group = species_name_lab, lty = species_name_lab), 
-              col = 'black',se = F, method = 'lm', formula = y ~ x + I(x^2) + I(x^3) + I(x^4), 
-              size = 0.5) + 
-  geom_hline(aes(yintercept = 0), lwd = 0.25) + 
-  scale_colour_manual(values = c('gray50', 'gray75')) + 
-  theme_bw() +  
-  theme(panel.grid = element_blank(),
-        aspect.ratio = 0.5, 
-        rect = element_rect(fill = "transparent"), 
-        legend.position = c(0.3,0.9), 
-        legend.title = element_blank(),
-        legend.background = element_blank(),
-        legend.key=element_blank(), 
-        panel.background = element_blank(), 
-        panel.border = element_blank(), 
-        plot.background = element_blank(), 
-        text = element_text(size = 14)) + 
-  ylab(shap_label) + 
-  xlab(env_label) + 
-  guides(colour = guide_legend(override.aes = list(size=4)))
-dev.off()
-
-# make wide for plot of shapley values for each species against eachother
-shap_CouCon12_wide <- shap_CouCon12 %>% 
-  select(-species_name_lab) %>% 
-  pivot_wider(names_from = 'species_name', values_from = all_of(CouCon_shap))
-
-shap_CouCon12_wide$col <- ifelse(shap_CouCon12_wide[[CouCon1]] > 0 & shap_CouCon12_wide[[CouCon2]] > 0, 1, 
-                              ifelse(shap_CouCon12_wide[[CouCon1]] < 0 & shap_CouCon12_wide[[CouCon2]] < 0, 2, 3))
-
-
-# set the limits
-max_axis <- max(c(shap_CouCon12_wide[[CouCon2]], shap_CouCon12_wide[[CouCon1]]), na.rm = T)
-min_axis <- min(c(shap_CouCon12_wide[[CouCon2]], shap_CouCon12_wide[[CouCon1]]), na.rm = T)
-
-pdf(paste0(CouCon, 'shapley_biplot.pdf'), width = 3, height = 3, bg = 'transparent')
-ggplot(data = shap_CouCon12_wide, 
-       aes(x = .data[[CouCon1]], y = .data[[CouCon2]], col = (.data[[CouCon1]] + .data[[CouCon2]]) / 2)) + 
-  geom_jitter() + 
-  geom_hline(aes(yintercept = 0), lwd = 0.25, col = 'gray50') + 
-  geom_vline(aes(xintercept = 0), lwd = 0.25, col = 'gray50') + 
-  scale_colour_gradientn(
-    colors=c('#bd0f06','gray90', '#2200c9'),
-    values=scales::rescale(c(-0.1, -0.02, 0, 0.02 , 0.1)),
-    limits=c(-max(abs(range(shap_CouCon12_wide[c(CouCon1, CouCon2)], na.rm = T))), 
-             max(abs(range(shap_CouCon12_wide[c(CouCon1, CouCon2)], na.rm = T))))) +
-  theme_bw() + 
-  theme(panel.grid = element_blank(), 
-        legend.position = 'none', 
-        aspect.ratio = 0.5,  
-        panel.background = element_blank(), 
-        panel.border = element_blank(), 
-        plot.background = element_blank(),
-        text = element_text(size = 14)) + 
-  xlab(bquote(phi1~ .(paste0(' ', CouCon1_lab)))) + 
-  ylab(bquote(phi1~ .(paste0(' ', CouCon2_lab)))) + 
-  geom_abline(lwd = 0.25, col = 'gray50') + 
-  xlim(c(min_axis, max_axis)) + 
-  ylim(c(min_axis, max_axis))
-dev.off()
-
-pdf(paste0(CouCon, '/CouCon1_map.pdf'), width = 4, height =4, bg = 'transparent')
-tm_shape(shap_rast_CouCon1[CouCon_shap]) +
-  tm_raster(style = "cont",
-            palette = c('#bd0f06','gray90', '#2200c9'),
-            legend.reverse = F,
-            title = CouCon1,
-            legend.is.portrait = F, 
-            legend.show = F, 
-            midpoint = 0,
-            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 4), 1)
-  ) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-pdf(paste0(CouCon, '/CouCon2_map.pdf'), width = 4, height =4, bg = 'transparent')
-tm_shape(shap_rast_CouCon2[CouCon_shap]) +
-  tm_raster(style = "cont",
-            palette = c('#bd0f06','gray90', '#2200c9'),
-            legend.reverse = F,
-            title = CouCon2,
-            legend.is.portrait = F, 
-            legend.show = F, 
-            midpoint = 0,
-            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 4), 1)
-  ) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-# read in presence predictions for both species
-pres_CouCon1 <- rast(sp_raster_pres_pa[grepl(CouCon1, sp_raster_pres_pa)])
-pres_CouCon2 <- rast(sp_raster_pres_pa[grepl(CouCon2, sp_raster_pres_pa)])
-pres_CouCon12 <- mosaic(pres_CouCon1, pres_CouCon2)
-
-
-# plot the environmental data
-pdf(paste0(CouCon, 'raw_map.pdf'), width = 3, height = 3, bg = 'transparent')
-tm_shape(env_data['local_asym_cl_log10']) + 
-  tm_raster(style = 'cont', 
-            palette = rev(c('#bd0f06','gray90', '#2200c9')), 
-            legend.is.portrait = F, 
-            title = 'Connectivity', 
-            legend.show = T, 
-            breaks = signif(seq(from = min(env_data['local_asym_cl_log10'][], na.rm = T), to = max(env_data['local_asym_cl_log10'][], na.rm = T), length.out = 4),3)) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-
-
-#### 7. Example 3. Contrast response curves for decoupled effects ----
-
-# contrast species
-DeCou1 <- 'Cottus gobio'
-DeCou2 <- 'Gobio gobio'
-
-# variable name
-DeCou_var <- 'local_imd_log10_ele_residual'
-# shapley name
-DeCou_shap <- 'local_imd_log10_ele_residual_SHAP'
-
-# environmental label
-env_label = 'urbanisation'
-shap_label = expression(phi1~'urbanisation')
-
-# plot titles
-title_DeCou_mean = expression('Mean urbanisation' ~ phi1)
-title_DeCou_sd   = expression('S.D. urbanisation' ~ phi1)
-title_DeCou_raw  = 'Raw urbanisation'
-
-
-# read in rasters for focal variables
-shap_rast_DeCou1 <- rast(paste0(shap_dirs[grepl(DeCou1, shap_dirs)], "/shap_raster_pa.TIF"))
-shap_rast_DeCou2 <- rast(paste0(shap_dirs[grepl(DeCou2, shap_dirs)], "/shap_raster_pa.TIF"))
-
-# read in raw shapleys
-shap_DeCou1 <- readRDS(shap_pa[grepl(DeCou1, shap_pa)])
-shap_DeCou2 <- readRDS(shap_pa[grepl(DeCou2, shap_pa)])
-
-# join together shapley values to environmental data for each TEILEZGNR
-shap_DeCou1 <- left_join(shap_DeCou1 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
-shap_DeCou2 <- left_join(shap_DeCou2 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
-
-# get variable of interest
-shap_DeCou12 <- bind_rows(shap_DeCou1, shap_DeCou2) %>% 
-  select(species_name, TEILEZGNR, matches(DeCou_var))
-
-# contrasting species response curves
-DeCou <- paste0(contrast_dir, 'Decoupled/')
-dir.create(DeCou, recursive =  T)
-
-pdf(paste0(DeCou, 'response_curves.pdf'), width = 3, height = 3, bg = 'transparent')
-ggplot(data = shap_DeCou12 %>% sample_n(., nrow(.)), 
-       aes(x = .data[[DeCou_var]], y = .data[[DeCou_shap]])) + 
-  geom_jitter(aes(pch = species_name, col = species_name)) + 
-  stat_smooth(aes(group = species_name, lty = species_name), 
-              col = 'black',se = F, method = 'lm', formula = y ~ x + I(x^2) + I(x^3) + I(x^4), 
-              size = 0.5) + 
-  geom_hline(aes(yintercept = 0), lwd = 0.25) + 
-  scale_colour_manual(values = c('gray50', 'gray75')) + 
-  theme_bw() +  
-  theme(panel.grid = element_blank(),
-        aspect.ratio = 0.5, 
-        rect = element_rect(fill = "transparent"), 
-        legend.position = c(0.6,0.9), 
-        legend.title = element_blank(),
-        legend.background = element_blank(),
-        legend.key=element_blank(), 
-        panel.background = element_blank(), 
-        panel.border = element_blank(), 
-        plot.background = element_blank(), 
-        text = element_text(size = 14)) + 
-  ylab(shap_label) + 
-  xlab(env_label) + 
-  guides(colour = guide_legend(override.aes = list(size=4)))
-dev.off()
-
-# make wide for plot of shapley values for each species against eachother
-shap_DeCou12_wide <- shap_DeCou12 %>% 
-  pivot_wider(names_from = 'species_name', values_from = all_of(DeCou_shap))
-
-shap_DeCou12_wide$col <- ifelse(shap_DeCou12_wide[[DeCou1]] > 0 & shap_DeCou12_wide[[DeCou2]] > 0, 1, 
-                                 ifelse(shap_DeCou12_wide[[DeCou1]] < 0 & shap_DeCou12_wide[[DeCou2]] < 0, 2, 3))
-
-
-# set the limits
-max_axis <- max(c(shap_DeCou12_wide[[DeCou2]], shap_DeCou12_wide[[DeCou1]]), na.rm = T)
-min_axis <- min(c(shap_DeCou12_wide[[DeCou2]], shap_DeCou12_wide[[DeCou1]]), na.rm = T)
-
-pdf(paste0(DeCou, 'shapley_biplot.pdf'), width = 3, height = 3, bg = 'transparent')
-ggplot(data = shap_DeCou12_wide, 
-       aes(x = .data[[DeCou1]], y = .data[[DeCou2]], col = (.data[[DeCou1]] + .data[[DeCou2]]) / 2)) + 
-  geom_jitter() + 
-  geom_hline(aes(yintercept = 0), lwd = 0.25, col = 'gray50') + 
-  geom_vline(aes(xintercept = 0), lwd = 0.25, col = 'gray50') + 
-  scale_colour_gradientn(
-    colors=c('#bd0f06','gray90', '#2200c9'),
-    values=scales::rescale(c(-0.1, -0.02, 0, 0.02 , 0.1)),
-    limits=c(-max(abs(range(shap_DeCou12_wide[c(DeCou1, DeCou2)], na.rm = T))), 
-             max(abs(range(shap_DeCou12_wide[c(DeCou1, DeCou2)], na.rm = T))))) +
-  theme_bw() + 
-  theme(panel.grid = element_blank(), 
-        legend.position = 'none', 
-        aspect.ratio = 0.5,  
-        panel.background = element_blank(), 
-        panel.border = element_blank(), 
-        plot.background = element_blank(), 
-        text = element_text(size = 14)) + 
-  xlab(bquote(phi1~ .(paste0(' ', DeCou1)))) + 
-  ylab(bquote(phi1~ .(paste0(' ', DeCou2)))) + 
-  geom_abline(lwd = 0.25, col = 'gray50') + 
-  xlim(c(min_axis, max_axis)) + 
-  ylim(c(min_axis, max_axis))
-dev.off()
-
-pdf(paste0(DeCou, '/DeCou1_map.pdf'), width = 4, height =4, bg = 'transparent')
-tm_shape(shap_rast_DeCou1[DeCou_shap]) +
-  tm_raster(style = "cont",
-            palette = c('#bd0f06','gray90', '#2200c9'),
-            legend.reverse = F,
-            title = DeCou1,
-            legend.is.portrait = F, 
-            legend.show = F, 
-            midpoint = 0,
-            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 4), 1)
-  ) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-pdf(paste0(DeCou, '/DeCou2_map.pdf'), width = 4, height =4, bg = 'transparent')
-tm_shape(shap_rast_DeCou2[DeCou_shap]) +
-  tm_raster(style = "cont",
-            palette = c('#bd0f06','gray90', '#2200c9'),
-            legend.reverse = F,
-            title = DeCou2,
-            legend.is.portrait = F, 
-            legend.show = F, 
-            midpoint = 0,
-            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 4), 1)
-  ) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F)
-dev.off()
-
-# read in presence predictions for both species
-pres_DeCou1 <- rast(sp_raster_pres_pa[grepl(DeCou1, sp_raster_pres_pa)])
-pres_DeCou2 <- rast(sp_raster_pres_pa[grepl(DeCou2, sp_raster_pres_pa)])
-pres_DeCou12 <- mosaic(pres_DeCou1, pres_DeCou2)
-
-
-# plot the environmental data
-pdf(paste0(DeCou, 'raw_map.pdf'), width = 3, height = 3, bg = 'transparent')
-tm_shape(env_data[DeCou_var]) + 
-  tm_raster(style = 'cont', 
-            palette = rev(c('#bd0f06','gray90', '#2200c9')), 
-            legend.is.portrait = F, 
-            title = title_DeCou_raw, 
-            legend.show = T, 
-            midpoint = 0, 
-            breaks = signif(seq(min(env_data[DeCou_var][], na.rm = T), max(env_data[DeCou_var][], na.rm = T), length.out = 4),1)) + 
-  tm_layout(bg.color = "transparent", 
-            frame = F, 
-            legend.hist.width = 0.1)
-dev.off()
-
-
-
-
 
 #### 8. Catchment force plots ----
 
@@ -1040,6 +510,9 @@ dev.off()
 
 #e3b1af
 
+save.image(file = 'Supplementary Data 2 - Figure 3 and 7.RData')
+
+
 #### 9. Make catchment specific response curves ----
 
 shap_focal_catch_rc <- shapley_focal %>%  
@@ -1186,4 +659,538 @@ ggplot(data = catchment_envs) +
   theme_bw() + 
   theme(panel.grid = element_blank())
 dev.off()
+
+
+
+
+### plots not used in final manuscript 
+
+#### 5. Example 1. Contrast response curves: coupled but divergent -----
+
+# contrast species
+CouDiv1 <- 'Oncorhynchus mykiss'
+CouDiv2 <- 'Squalius cephalus'
+
+CouDiv1_lab <- 'O. mykiss'
+CouDiv2_lab <- 'S. cephalus'
+
+# variable name
+CouDiv_var <- 'ecoF_eco_mean_ele_residual'
+# shapley name
+CouDiv_shap <- 'ecoF_eco_mean_ele_residual_SHAP'
+
+# environmental label
+env_label = 'morph.'
+shap_label = expression(phi1~'morph.')
+
+# plot titles
+title_CouDiv_mean = expression('Mean morphological mod.' ~ phi1)
+title_CouDiv_sd   = expression('S.D. morphological mod.' ~ phi1)
+title_CouDiv_raw  = 'morph.'
+
+
+# read in rasters for focal variables
+shap_rast_CouDiv1 <- rast(paste0(shap_dirs[grepl(CouDiv1, shap_dirs)], "/shap_raster_pa.TIF"))
+shap_rast_CouDiv2 <- rast(paste0(shap_dirs[grepl(CouDiv2, shap_dirs)], "/shap_raster_pa.TIF"))
+
+# read in raw shapleys
+shap_CouDiv1 <- readRDS(shap_pa[grepl(CouDiv1, shap_pa)])
+shap_CouDiv2 <- readRDS(shap_pa[grepl(CouDiv2, shap_pa)])
+
+# join together shapley values to environmental data for each TEILEZGNR
+shap_CouDiv1 <- left_join(shap_CouDiv1 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
+shap_CouDiv2 <- left_join(shap_CouDiv2 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
+
+# get variable of interest
+shap_CouDiv12 <- bind_rows(shap_CouDiv1, shap_CouDiv2) %>% 
+  select(species_name, TEILEZGNR, matches(CouDiv_var))
+
+# shorten names
+shap_CouDiv12 <- shap_CouDiv12 %>% mutate(species_name_lab = case_when(.$species_name == CouDiv1 ~ CouDiv1_lab, 
+                                                                       .$species_name == CouDiv2 ~ CouDiv2_lab))
+
+# contrasting species response curves
+CouDiv <- paste0(contrast_dir, '/Coupled_Divergent/')
+dir.create(CouDiv, recursive =  T)
+
+pdf(paste0(CouDiv, 'response_curves.pdf'), width = 3, height = 3, bg = 'transparent')
+ggplot(data = shap_CouDiv12%>% sample_n(., nrow(.)), 
+       aes(x = .data[[CouDiv_var]], y = .data[[CouDiv_shap]])) + 
+  geom_jitter(aes(pch = species_name_lab, col = species_name_lab)) + 
+  stat_smooth(aes(group = species_name_lab, lty = species_name_lab), 
+              col = 'black', se = F, method = 'gam', size = 0.5) + 
+  geom_hline(yintercept = 0, lwd = 0.25) + 
+  theme_bw() +  
+  theme(panel.grid = element_blank(),
+        aspect.ratio = 0.5, 
+        rect = element_rect(fill = "transparent"), 
+        legend.position = c(0.6,0.9), 
+        legend.title = element_blank(),
+        legend.background = element_blank(),
+        legend.key=element_blank(), 
+        panel.background = element_blank(), 
+        panel.border = element_blank(), 
+        plot.background = element_blank(), 
+        text = element_text(size = 14)) + 
+  ylab(shap_label) + 
+  xlab(env_label) + 
+  scale_colour_manual(values = c('gray50', 'gray75')) + 
+  guides(colour = guide_legend(override.aes = list(size=4)))
+dev.off()
+
+# make wide for plot of shapley values for each species against eachother
+shap_CouDiv12_wide <- shap_CouDiv12 %>%
+  select(-species_name_lab) %>% 
+  pivot_wider(names_from = 'species_name', values_from = CouDiv_shap)
+
+# set the limits
+max_axis <- max(c(shap_CouDiv12_wide[[CouDiv2]], shap_CouDiv12_wide[[CouDiv1]]), na.rm = T)
+min_axis <- min(c(shap_CouDiv12_wide[[CouDiv2]], shap_CouDiv12_wide[[CouDiv1]]), na.rm = T)
+
+
+# make biplot of shapley
+pdf(paste0(CouDiv, 'shapley_biplot.pdf'), width = 3, height = 3, bg = 'transparent')
+ggplot(data = shap_CouDiv12_wide, 
+       aes(x = .data[[CouDiv1]], y = .data[[CouDiv2]], col = (.data[[CouDiv1]] + .data[[CouDiv2]]) / 2)) + 
+  geom_jitter() + 
+  geom_hline(aes(yintercept = 0), lwd = 0.25, col = 'gray50') + 
+  geom_vline(aes(xintercept = 0), lwd = 0.25, col = 'gray50') + 
+  geom_abline(lwd = 0.25, col = 'gray50') + 
+  #scale_colour_manual(values = c('#bd0f06', '#2200c9', 'gray90')) + 
+  scale_colour_gradientn(
+    colors=c('#bd0f06','gray90', '#2200c9'),
+    values=scales::rescale(c(-0.1, -0.02, 0, 0.02 , 0.1)),
+    limits=c(-max(abs(range(shap_CouDiv12_wide[c(CouDiv1, CouDiv2)], na.rm = T))), 
+             max(abs(range(shap_CouDiv12_wide[c(CouDiv1, CouDiv2)], na.rm = T))))) +
+  theme_bw() + 
+  theme(panel.grid = element_blank(), 
+        legend.position = 'none', aspect.ratio = 0.5, 
+        rect = element_rect(fill = "transparent"), 
+        panel.background = element_blank(), 
+        panel.border = element_blank(), 
+        plot.background = element_blank(), 
+        text = element_text(size = 14)) + 
+  xlab(bquote(phi1~ .(paste0(' ', CouDiv1_lab)))) + 
+  ylab(bquote(phi1~ .(paste0(' ', CouDiv2_lab)))) + 
+  ylim(c(min_axis, max_axis)) + 
+  xlim(c(min_axis, max_axis))
+dev.off()
+
+pdf(paste0(CouDiv, '/CouDiv1_map.pdf'), width = 4, height =4, bg = 'transparent')
+tm_shape(shap_rast_CouDiv1[CouDiv_shap]) +
+  tm_raster(style = "cont",
+            palette = c('#bd0f06','gray90', '#2200c9'),
+            legend.reverse = F,
+            title = CouDiv1,
+            legend.is.portrait = F, 
+            legend.show = F, 
+            midpoint = 0,
+            breaks = signif(seq(min(shap_rast_CouDiv1[CouDiv_shap][], na.rm = T), max(shap_rast_CouDiv1[CouDiv_shap][], na.rm = T), length.out = 4),1)) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+pdf(paste0(CouDiv, '/CouDiv2_map.pdf'), width = 4, height =4, bg = 'transparent')
+tm_shape(shap_rast_CouDiv2[CouDiv_shap]) +
+  tm_raster(style = "cont",
+            palette = c('#bd0f06','gray90', '#2200c9'),
+            legend.reverse = F,
+            title = CouDiv2,
+            legend.is.portrait = F, 
+            legend.show = F, 
+            midpoint = 0,
+            breaks = signif(seq(min(shap_rast_CouDiv2[CouDiv_shap][], na.rm = T), max(shap_rast_CouDiv2[CouDiv_shap][], na.rm = T), length.out = 4),1)
+  ) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+
+# read in presence predictions for both species
+pres_CouDiv1 <- rast(sp_raster_pres_pa[grepl(CouDiv1, sp_raster_pres_pa)])
+pres_CouDiv2 <- rast(sp_raster_pres_pa[grepl(CouDiv2, sp_raster_pres_pa)])
+pres_CouDiv12 <- mosaic(pres_CouDiv1, pres_CouDiv2)
+
+shap_div_CouDiv1 <- shap_rast_CouDiv1[CouDiv_shap] > shap_rast_CouDiv2[CouDiv_shap] & shap_rast_CouDiv1[CouDiv_shap] > 0
+shap_div_CouDiv2 <- shap_rast_CouDiv2[CouDiv_shap] > shap_rast_CouDiv1[CouDiv_shap] & shap_rast_CouDiv2[CouDiv_shap] > 0
+
+shap_div_CouDiv1[shap_div_CouDiv1[]==F] <- NA
+shap_div_CouDiv1[shap_div_CouDiv1[]==T] <- 1
+shap_div_CouDiv2[shap_div_CouDiv2[]==F] <- NA
+shap_div_CouDiv2[shap_div_CouDiv2[]==T] <- 2
+
+shap_div_CouDiv12 <- mosaic(shap_div_CouDiv1, shap_div_CouDiv2)
+pres_CouDiv12 <- resample(pres_CouDiv12, shap_div_CouDiv12)
+shap_div_CouDiv12[is.na(pres_CouDiv12)] <- NA
+
+
+## take average of species shapley values and plot
+shap_mean_CouDiv12 <- app(c(shap_rast_CouDiv1[CouDiv_shap], shap_rast_CouDiv2[CouDiv_shap] ), mean)
+pdf(paste0(CouDiv, 'mean_map.pdf'), width = 4, height =4, bg = 'transparent')
+tm_shape(shap_mean_CouDiv12) +
+  tm_raster(style = "cont",
+            palette = c('#bd0f06','gray90', '#2200c9'),
+            legend.reverse = F,
+            title = title_CouDiv_mean,
+            legend.is.portrait = F, 
+            legend.show = T, 
+            midpoint = 0, 
+            breaks = signif(seq(min(shap_mean_CouDiv12[], na.rm = T), max(shap_mean_CouDiv12[], na.rm = T), length.out = 4),1)
+            #breaks = c(-0.2, -0.1, 0, 0.1, 0.2)
+  ) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+## take the sd of species shapley values
+shap_sd_CouDiv12 <- app(c(shap_rast_CouDiv1[CouDiv_shap], shap_rast_CouDiv2[CouDiv_shap] ), sd)
+pdf(paste0(CouDiv, 'sd_map.pdf'), width = 4, height =4, bg = 'transparent')
+tm_shape(shap_sd_CouDiv12) +
+  tm_raster(style = "cont",
+            palette = c('gray90', '#bd0f06'),
+            legend.reverse = F,
+            title = title_CouDiv_sd,
+            legend.is.portrait = F, 
+            legend.show = T,
+            breaks = signif(seq(min(shap_sd_CouDiv12[], na.rm = T), max(shap_sd_CouDiv12[], na.rm = T), length.out = 4),1)
+            #breaks = c(0, 0.1, 0.2, 0.25)
+  ) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+# plot the environmental data
+pdf(paste0(CouDiv, 'raw_map.pdf'), width = 3, height = 3, bg = 'transparent')
+tm_shape(env_data[CouDiv_var]) + 
+  tm_raster(style = 'cont', 
+            palette = rev(c('#bd0f06','gray90', '#2200c9')), 
+            legend.is.portrait = F, 
+            title = title_CouDiv_raw, 
+            legend.show = T, 
+            midpoint = 0, 
+            breaks = signif(seq(min(env_data[CouDiv_var][], na.rm = T), max(env_data[CouDiv_var][], na.rm = T), length.out = 4),1)) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+#### 6. Example 2. Contrast response curves for connnectivity across species ----
+
+# contrast species
+CouCon1 <- 'Lampetra planeri'
+CouCon2 <- 'Barbus barbus'
+
+CouCon1_lab <- 'L. planeri'
+CouCon2_lab <- 'B. barbus'
+
+# variable name
+CouCon_var <- 'local_asym_cl_log10'
+# shapley name
+CouCon_shap <- 'local_asym_cl_log10_SHAP'
+
+# environmental label
+env_label = 'connectivity'
+shap_label = expression(phi1~'conectivity')
+
+# plot titles
+title_CouCon_mean = expression('Mean connectivity' ~ phi1)
+title_CouCon_sd   = expression('S.D. connectivity' ~ phi1)
+title_CouCon_raw  = 'Raw connectivity'
+
+
+# read in rasters for focal variables
+shap_rast_CouCon1 <- rast(paste0(shap_dirs[grepl(CouCon1, shap_dirs)], "/shap_raster_pa.TIF"))
+shap_rast_CouCon2 <- rast(paste0(shap_dirs[grepl(CouCon2, shap_dirs)], "/shap_raster_pa.TIF"))
+
+# read in raw shapleys
+shap_CouCon1 <- readRDS(shap_pa[grepl(CouCon1, shap_pa)])
+shap_CouCon2 <- readRDS(shap_pa[grepl(CouCon2, shap_pa)])
+
+# join together shapley values to environmental data for each TEILEZGNR
+shap_CouCon1 <- left_join(shap_CouCon1 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
+shap_CouCon2 <- left_join(shap_CouCon2 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
+
+# get variable of interest
+shap_CouCon12 <- bind_rows(shap_CouCon1, shap_CouCon2) %>% 
+  select(species_name, TEILEZGNR, matches(CouCon_var))
+
+shap_CouCon12 <- shap_CouCon12 %>% mutate(species_name_lab = case_when(.$species_name == CouCon1 ~ CouCon1_lab, 
+                                                                       .$species_name == CouCon2 ~ CouCon2_lab))
+
+# contrasting species response curves
+CouCon <- paste0(contrast_dir, 'Coupled_Convergent/')
+dir.create(CouCon, recursive =  T)
+
+pdf(paste0(CouCon, 'response_curves.pdf'), width = 3, height = 3, bg = 'transparent')
+ggplot(data = shap_CouCon12 %>% sample_n(., nrow(.)), 
+       aes(x = .data[[CouCon_var]], y = .data[[CouCon_shap]])) + 
+  geom_jitter(aes(pch = species_name_lab, col = species_name_lab)) + 
+  stat_smooth(aes(group = species_name_lab, lty = species_name_lab), 
+              col = 'black',se = F, method = 'lm', formula = y ~ x + I(x^2) + I(x^3) + I(x^4), 
+              size = 0.5) + 
+  geom_hline(aes(yintercept = 0), lwd = 0.25) + 
+  scale_colour_manual(values = c('gray50', 'gray75')) + 
+  theme_bw() +  
+  theme(panel.grid = element_blank(),
+        aspect.ratio = 0.5, 
+        rect = element_rect(fill = "transparent"), 
+        legend.position = c(0.3,0.9), 
+        legend.title = element_blank(),
+        legend.background = element_blank(),
+        legend.key=element_blank(), 
+        panel.background = element_blank(), 
+        panel.border = element_blank(), 
+        plot.background = element_blank(), 
+        text = element_text(size = 14)) + 
+  ylab(shap_label) + 
+  xlab(env_label) + 
+  guides(colour = guide_legend(override.aes = list(size=4)))
+dev.off()
+
+# make wide for plot of shapley values for each species against eachother
+shap_CouCon12_wide <- shap_CouCon12 %>% 
+  select(-species_name_lab) %>% 
+  pivot_wider(names_from = 'species_name', values_from = all_of(CouCon_shap))
+
+shap_CouCon12_wide$col <- ifelse(shap_CouCon12_wide[[CouCon1]] > 0 & shap_CouCon12_wide[[CouCon2]] > 0, 1, 
+                                 ifelse(shap_CouCon12_wide[[CouCon1]] < 0 & shap_CouCon12_wide[[CouCon2]] < 0, 2, 3))
+
+
+# set the limits
+max_axis <- max(c(shap_CouCon12_wide[[CouCon2]], shap_CouCon12_wide[[CouCon1]]), na.rm = T)
+min_axis <- min(c(shap_CouCon12_wide[[CouCon2]], shap_CouCon12_wide[[CouCon1]]), na.rm = T)
+
+pdf(paste0(CouCon, 'shapley_biplot.pdf'), width = 3, height = 3, bg = 'transparent')
+ggplot(data = shap_CouCon12_wide, 
+       aes(x = .data[[CouCon1]], y = .data[[CouCon2]], col = (.data[[CouCon1]] + .data[[CouCon2]]) / 2)) + 
+  geom_jitter() + 
+  geom_hline(aes(yintercept = 0), lwd = 0.25, col = 'gray50') + 
+  geom_vline(aes(xintercept = 0), lwd = 0.25, col = 'gray50') + 
+  scale_colour_gradientn(
+    colors=c('#bd0f06','gray90', '#2200c9'),
+    values=scales::rescale(c(-0.1, -0.02, 0, 0.02 , 0.1)),
+    limits=c(-max(abs(range(shap_CouCon12_wide[c(CouCon1, CouCon2)], na.rm = T))), 
+             max(abs(range(shap_CouCon12_wide[c(CouCon1, CouCon2)], na.rm = T))))) +
+  theme_bw() + 
+  theme(panel.grid = element_blank(), 
+        legend.position = 'none', 
+        aspect.ratio = 0.5,  
+        panel.background = element_blank(), 
+        panel.border = element_blank(), 
+        plot.background = element_blank(),
+        text = element_text(size = 14)) + 
+  xlab(bquote(phi1~ .(paste0(' ', CouCon1_lab)))) + 
+  ylab(bquote(phi1~ .(paste0(' ', CouCon2_lab)))) + 
+  geom_abline(lwd = 0.25, col = 'gray50') + 
+  xlim(c(min_axis, max_axis)) + 
+  ylim(c(min_axis, max_axis))
+dev.off()
+
+pdf(paste0(CouCon, '/CouCon1_map.pdf'), width = 4, height =4, bg = 'transparent')
+tm_shape(shap_rast_CouCon1[CouCon_shap]) +
+  tm_raster(style = "cont",
+            palette = c('#bd0f06','gray90', '#2200c9'),
+            legend.reverse = F,
+            title = CouCon1,
+            legend.is.portrait = F, 
+            legend.show = F, 
+            midpoint = 0,
+            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 4), 1)
+  ) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+pdf(paste0(CouCon, '/CouCon2_map.pdf'), width = 4, height =4, bg = 'transparent')
+tm_shape(shap_rast_CouCon2[CouCon_shap]) +
+  tm_raster(style = "cont",
+            palette = c('#bd0f06','gray90', '#2200c9'),
+            legend.reverse = F,
+            title = CouCon2,
+            legend.is.portrait = F, 
+            legend.show = F, 
+            midpoint = 0,
+            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 4), 1)
+  ) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+# read in presence predictions for both species
+pres_CouCon1 <- rast(sp_raster_pres_pa[grepl(CouCon1, sp_raster_pres_pa)])
+pres_CouCon2 <- rast(sp_raster_pres_pa[grepl(CouCon2, sp_raster_pres_pa)])
+pres_CouCon12 <- mosaic(pres_CouCon1, pres_CouCon2)
+
+
+# plot the environmental data
+pdf(paste0(CouCon, 'raw_map.pdf'), width = 3, height = 3, bg = 'transparent')
+tm_shape(env_data['local_asym_cl_log10']) + 
+  tm_raster(style = 'cont', 
+            palette = rev(c('#bd0f06','gray90', '#2200c9')), 
+            legend.is.portrait = F, 
+            title = 'Connectivity', 
+            legend.show = T, 
+            breaks = signif(seq(from = min(env_data['local_asym_cl_log10'][], na.rm = T), to = max(env_data['local_asym_cl_log10'][], na.rm = T), length.out = 4),3)) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+
+
+#### 7. Example 3. Contrast response curves for decoupled effects ----
+
+# contrast species
+DeCou1 <- 'Cottus gobio'
+DeCou2 <- 'Gobio gobio'
+
+# variable name
+DeCou_var <- 'local_imd_log10_ele_residual'
+# shapley name
+DeCou_shap <- 'local_imd_log10_ele_residual_SHAP'
+
+# environmental label
+env_label = 'urbanisation'
+shap_label = expression(phi1~'urbanisation')
+
+# plot titles
+title_DeCou_mean = expression('Mean urbanisation' ~ phi1)
+title_DeCou_sd   = expression('S.D. urbanisation' ~ phi1)
+title_DeCou_raw  = 'Raw urbanisation'
+
+
+# read in rasters for focal variables
+shap_rast_DeCou1 <- rast(paste0(shap_dirs[grepl(DeCou1, shap_dirs)], "/shap_raster_pa.TIF"))
+shap_rast_DeCou2 <- rast(paste0(shap_dirs[grepl(DeCou2, shap_dirs)], "/shap_raster_pa.TIF"))
+
+# read in raw shapleys
+shap_DeCou1 <- readRDS(shap_pa[grepl(DeCou1, shap_pa)])
+shap_DeCou2 <- readRDS(shap_pa[grepl(DeCou2, shap_pa)])
+
+# join together shapley values to environmental data for each TEILEZGNR
+shap_DeCou1 <- left_join(shap_DeCou1 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
+shap_DeCou2 <- left_join(shap_DeCou2 %>% unique(), all_env_subcatchments %>% unique(), by = 'TEILEZGNR')
+
+# get variable of interest
+shap_DeCou12 <- bind_rows(shap_DeCou1, shap_DeCou2) %>% 
+  select(species_name, TEILEZGNR, matches(DeCou_var))
+
+# contrasting species response curves
+DeCou <- paste0(contrast_dir, 'Decoupled/')
+dir.create(DeCou, recursive =  T)
+
+pdf(paste0(DeCou, 'response_curves.pdf'), width = 3, height = 3, bg = 'transparent')
+ggplot(data = shap_DeCou12 %>% sample_n(., nrow(.)), 
+       aes(x = .data[[DeCou_var]], y = .data[[DeCou_shap]])) + 
+  geom_jitter(aes(pch = species_name, col = species_name)) + 
+  stat_smooth(aes(group = species_name, lty = species_name), 
+              col = 'black',se = F, method = 'lm', formula = y ~ x + I(x^2) + I(x^3) + I(x^4), 
+              size = 0.5) + 
+  geom_hline(aes(yintercept = 0), lwd = 0.25) + 
+  scale_colour_manual(values = c('gray50', 'gray75')) + 
+  theme_bw() +  
+  theme(panel.grid = element_blank(),
+        aspect.ratio = 0.5, 
+        rect = element_rect(fill = "transparent"), 
+        legend.position = c(0.6,0.9), 
+        legend.title = element_blank(),
+        legend.background = element_blank(),
+        legend.key=element_blank(), 
+        panel.background = element_blank(), 
+        panel.border = element_blank(), 
+        plot.background = element_blank(), 
+        text = element_text(size = 14)) + 
+  ylab(shap_label) + 
+  xlab(env_label) + 
+  guides(colour = guide_legend(override.aes = list(size=4)))
+dev.off()
+
+# make wide for plot of shapley values for each species against eachother
+shap_DeCou12_wide <- shap_DeCou12 %>% 
+  pivot_wider(names_from = 'species_name', values_from = all_of(DeCou_shap))
+
+shap_DeCou12_wide$col <- ifelse(shap_DeCou12_wide[[DeCou1]] > 0 & shap_DeCou12_wide[[DeCou2]] > 0, 1, 
+                                ifelse(shap_DeCou12_wide[[DeCou1]] < 0 & shap_DeCou12_wide[[DeCou2]] < 0, 2, 3))
+
+
+# set the limits
+max_axis <- max(c(shap_DeCou12_wide[[DeCou2]], shap_DeCou12_wide[[DeCou1]]), na.rm = T)
+min_axis <- min(c(shap_DeCou12_wide[[DeCou2]], shap_DeCou12_wide[[DeCou1]]), na.rm = T)
+
+pdf(paste0(DeCou, 'shapley_biplot.pdf'), width = 3, height = 3, bg = 'transparent')
+ggplot(data = shap_DeCou12_wide, 
+       aes(x = .data[[DeCou1]], y = .data[[DeCou2]], col = (.data[[DeCou1]] + .data[[DeCou2]]) / 2)) + 
+  geom_jitter() + 
+  geom_hline(aes(yintercept = 0), lwd = 0.25, col = 'gray50') + 
+  geom_vline(aes(xintercept = 0), lwd = 0.25, col = 'gray50') + 
+  scale_colour_gradientn(
+    colors=c('#bd0f06','gray90', '#2200c9'),
+    values=scales::rescale(c(-0.1, -0.02, 0, 0.02 , 0.1)),
+    limits=c(-max(abs(range(shap_DeCou12_wide[c(DeCou1, DeCou2)], na.rm = T))), 
+             max(abs(range(shap_DeCou12_wide[c(DeCou1, DeCou2)], na.rm = T))))) +
+  theme_bw() + 
+  theme(panel.grid = element_blank(), 
+        legend.position = 'none', 
+        aspect.ratio = 0.5,  
+        panel.background = element_blank(), 
+        panel.border = element_blank(), 
+        plot.background = element_blank(), 
+        text = element_text(size = 14)) + 
+  xlab(bquote(phi1~ .(paste0(' ', DeCou1)))) + 
+  ylab(bquote(phi1~ .(paste0(' ', DeCou2)))) + 
+  geom_abline(lwd = 0.25, col = 'gray50') + 
+  xlim(c(min_axis, max_axis)) + 
+  ylim(c(min_axis, max_axis))
+dev.off()
+
+pdf(paste0(DeCou, '/DeCou1_map.pdf'), width = 4, height =4, bg = 'transparent')
+tm_shape(shap_rast_DeCou1[DeCou_shap]) +
+  tm_raster(style = "cont",
+            palette = c('#bd0f06','gray90', '#2200c9'),
+            legend.reverse = F,
+            title = DeCou1,
+            legend.is.portrait = F, 
+            legend.show = F, 
+            midpoint = 0,
+            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 4), 1)
+  ) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+pdf(paste0(DeCou, '/DeCou2_map.pdf'), width = 4, height =4, bg = 'transparent')
+tm_shape(shap_rast_DeCou2[DeCou_shap]) +
+  tm_raster(style = "cont",
+            palette = c('#bd0f06','gray90', '#2200c9'),
+            legend.reverse = F,
+            title = DeCou2,
+            legend.is.portrait = F, 
+            legend.show = F, 
+            midpoint = 0,
+            breaks = signif(seq(from = signif(min_axis,2), to = signif(max_axis,2), length.out = 4), 1)
+  ) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F)
+dev.off()
+
+# read in presence predictions for both species
+pres_DeCou1 <- rast(sp_raster_pres_pa[grepl(DeCou1, sp_raster_pres_pa)])
+pres_DeCou2 <- rast(sp_raster_pres_pa[grepl(DeCou2, sp_raster_pres_pa)])
+pres_DeCou12 <- mosaic(pres_DeCou1, pres_DeCou2)
+
+
+# plot the environmental data
+pdf(paste0(DeCou, 'raw_map.pdf'), width = 3, height = 3, bg = 'transparent')
+tm_shape(env_data[DeCou_var]) + 
+  tm_raster(style = 'cont', 
+            palette = rev(c('#bd0f06','gray90', '#2200c9')), 
+            legend.is.portrait = F, 
+            title = title_DeCou_raw, 
+            legend.show = T, 
+            midpoint = 0, 
+            breaks = signif(seq(min(env_data[DeCou_var][], na.rm = T), max(env_data[DeCou_var][], na.rm = T), length.out = 4),1)) + 
+  tm_layout(bg.color = "transparent", 
+            frame = F, 
+            legend.hist.width = 0.1)
+dev.off()
+
+
 

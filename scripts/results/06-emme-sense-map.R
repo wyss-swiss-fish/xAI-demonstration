@@ -156,6 +156,7 @@ tm_shape(ch_poly) +
 dev.off()  
 
 
+save.image('Supplementary Data 3 - Figure 7.RData')
 
 
 #### read in environmental data and extract values for emme and sense ----
@@ -291,4 +292,8 @@ tm_shape(western_eu) +
   tm_layout(frame = F, 
             bg.color = "transparent") 
 dev.off()
+
+
+#
+
 
